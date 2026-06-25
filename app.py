@@ -16,9 +16,10 @@ GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "TEST_MODU")
 GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "TEST_MODU")
 
-# Google Kimlik Doğrulayıcı
+# --- 🔴 GOOGLE AUTH GÜNCELLEMESİ 🔴 ---
+# Hatalı olan secret_key parametresini cookie_secret olarak düzelttik şef!
 authenticator = Authenticate(
-    secret_key="nokta_ai_gizli_anahtar_99",
+    cookie_secret="nokta_ai_gizli_anahtar_99",  # Yeni parametre adı bu!
     cookie_name="nokta_ai_oauth",
     cookie_expiry_days=30,
     client_id=GOOGLE_CLIENT_ID,
@@ -26,10 +27,10 @@ authenticator = Authenticate(
     redirect_uri="https://nokta-ai.onrender.com",
 )
 
+# Tarayıcı oturumunu kontrol et
 authenticator.check_authentification()
 
-# --- 🧠 KONULAR İÇİN ÖZEL HAFIZA MATRİSİ ---
-# Her konunun sohbet geçmişini ayrı bir kutuda saklıyoruz şef!
+# --- 🧠 KONULAR İÇ BENZERSİZ HAFIZA MATRİSİ ---
 if "konu_hafizalari" not in st.session_state:
     st.session_state.konu_hafizalari = {
         "🤖 Genel Yapay Zeka": [],
@@ -58,7 +59,7 @@ if not st.session_state.giris_yapildi and not st.session_state.get("connected", 
     
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
-        # 🟢 1. SEÇENEK: GİRİŞ YAPMADAN DEVAM ET BUTONU
+        # 🟢 1. SEÇENEK: GİRİŞ YAPMADAN DEVAM ET
         hizli_gecis = st.button("🚀 Giriş Yapmadan Devam Et (Misafir Modu)", use_container_width=True)
         if hizli_gecis:
             st.session_state.giris_yapildi = True
@@ -68,7 +69,7 @@ if not st.session_state.giris_yapildi and not st.session_state.get("connected", 
             
         st.markdown("<hr style='border-color: #444;'>", unsafe_allow_html=True)
         
-        # 🔴 2. SEÇENEK: RESMİ GOOGLE GİRİŞİ
+        # 🔴 2. SEÇENEK: GERÇEK GOOGLE GİRİŞİ
         st.markdown("<p style='text-align: center; font-weight: bold;'>Google Hesabınla Bağlan:</p>", unsafe_allow_html=True)
         authenticator.login()
         if st.session_state.get("connected", False):
@@ -102,12 +103,10 @@ with st.sidebar:
     st.write(f"🛡️ Rol: **{'👑 KURUCU' if st.session_state.is_admin else '👤 ZİYARETÇİ / ÜYE'}**")
     st.write("---")
     
-    # 🔥 AKILLI KONU SEÇİM ALANI 🔥
     st.markdown("### 📚 Bir Sohbet Konusu Seç")
     konu_listesi = list(st.session_state.konu_hafizalari.keys())
     secilen_konu_kutusu = st.selectbox("Konuyu Değiştir:", konu_listesi, index=konu_listesi.index(st.session_state.secilen_konu))
     
-    # Konu değiştiğinde eski konunun mesajlarını kaydet, yenisini yükle!
     if secilen_konu_kutusu != st.session_state.secilen_konu:
         st.session_state.secilen_konu = secilen_konu_kutusu
         st.toast(f"🔄 {secilen_konu_kutusu} hafızası yüklendi şef!")
@@ -128,14 +127,13 @@ with st.sidebar:
         st.session_state.is_admin = False
         st.rerun()
 
-# --- 🔥 DİNAMİK GROQ SOHBET MOTORU FONKSİYONU ---
+# --- 🔥 DİNAMİK GROQ SOHBET MOTORU ---
 def groq_sohbet_motoru(kullanici_mesaji, base64_goruntu=None):
     if not GROQ_API_KEY:
         return "Hata: GROQ_API_KEY Render'da eksik şef!"
     try:
         client = Groq(api_key=GROQ_API_KEY)
         
-        # Konuya göre gizli talimatlar
         if "Minecraft" in st.session_state.secilen_konu:
             konu_emri = "Sen tam bir Minecraft ve Roblox uzmanısın. Kullanıcıya modlar, aternos sunucuları ve oyun stratejileri ver."
         elif "Arduino" in st.session_state.secilen_konu:
@@ -151,17 +149,14 @@ def groq_sohbet_motoru(kullanici_mesaji, base64_goruntu=None):
             f"Senin adın Nokta AI Ultimate. Sen Berat tarafından geliştirilmiş çok gelişmiş bir yapay zekasın. "
             f"Berat bir ilkokul öğrencisidir ve bu projenin dahi mucididir. Ona hep 'Şef' veya 'Kurucum' de. "
             f"Şu anki aktif sohbet konun: {st.session_state.secilen_konu}. {konu_emri} "
-            f"Kışla, enerjik ve net Türkçe cevaplar ver."
+            f"Kısa, enerjik ve net Türkçe cevaplar ver."
         )
         
-        # Groq mesaj listesini oluşturma
         groq_messages = [{"role": "system", "content": system_instruction}]
         
-        # Geçmiş mesajları kendi hafızasından çekip ekliyoruz (Böylece geçmişi unutmuyor!)
         for m in st.session_state.konu_hafizalari[st.session_state.secilen_konu]:
             groq_messages.append({"role": m["role"], "content": m["content"]})
             
-        # Yeni mesajı ve varsa resmi ekliyoruz
         icerik_listesi = [{"type": "text", "text": kullanici_mesaji}]
         if base64_goruntu:
             icerik_listesi.append({
@@ -183,16 +178,13 @@ def groq_sohbet_motoru(kullanici_mesaji, base64_goruntu=None):
 
 # --- 💬 SOHBET ODASI EKRANI ---
 st.title(f"💬 Nokta AI Odası: {st.session_state.secilen_konu}")
-st.caption(f"🎯 Şu an bu konunun özel hafızası devrede. Başka konuya geçip geri gelsen bile buradaki konuşmaların saklanır şef!")
 
-# Seçilen konunun kendi geçmişini ekrana basıyoruz
 for m in st.session_state.konu_hafizalari[st.session_state.secilen_konu]:
     with st.chat_message(m["role"]): st.write(m["content"])
     
 if ks := st.chat_input("Nokta AI'a mesajını fırlat..."):
     with st.chat_message("user"): st.write(ks)
     
-    # Yeni mesajı konunun kendi hafıza kutusuna kaydediyoruz
     st.session_state.konu_hafizalari[st.session_state.secilen_konu].append({'role': 'user', 'content': ks})
     
     b64_img = goruntuyu_base64_yap(sohbet_görüntüsü) if sohbet_görüntüsü else None
@@ -202,6 +194,5 @@ if ks := st.chat_input("Nokta AI'a mesajını fırlat..."):
             cevap = groq_sohbet_motoru(ks, b64_img)
             
     st.write(cevap)
-    # Yapay zekanın cevabını da yine o konunun kutusuna atıyoruz
     st.session_state.konu_hafizalari[st.session_state.secilen_konu].append({'role': 'assistant', 'content': cevap})
     st.rerun()
