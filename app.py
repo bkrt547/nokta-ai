@@ -4,33 +4,14 @@ import os
 import base64
 from io import BytesIO
 from groq import Groq
-from streamlit_google_auth import Authenticate
 
 # Sayfa Ayarları
 st.set_page_config(page_title="Nokta AI Ultimate Konular", page_icon="🎯", layout="wide")
 
-VERITABANI_DOSYASI = "kullanicilar.json"
-
 # --- 🔑 API BAĞLANTILARI ---
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
-GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "TEST_MODU")
-GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "TEST_MODU")
 
-# --- 🔴 GOOGLE AUTH GÜNCELLEMESİ 🔴 ---
-# Hatalı olan secret_key parametresini cookie_secret olarak düzelttik şef!
-authenticator = Authenticate(
-    cookie_secret="nokta_ai_gizli_anahtar_99",  # Yeni parametre adı bu!
-    cookie_name="nokta_ai_oauth",
-    cookie_expiry_days=30,
-    client_id=GOOGLE_CLIENT_ID,
-    client_secret=GOOGLE_CLIENT_SECRET,
-    redirect_uri="https://nokta-ai.onrender.com",
-)
-
-# Tarayıcı oturumunu kontrol et
-authenticator.check_authentification()
-
-# --- 🧠 KONULAR İÇ BENZERSİZ HAFIZA MATRİSİ ---
+# --- 🧠 KONULAR İÇİN ÖZEL HAFIZA MATRİSİ ---
 if "konu_hafizalari" not in st.session_state:
     st.session_state.konu_hafizalari = {
         "🤖 Genel Yapay Zeka": [],
@@ -52,9 +33,9 @@ def goruntuyu_base64_yap(yuklenen_dosya):
     return None
 
 # --- GİRİŞ VE HIZLI GEÇİŞ EKRANI ---
-if not st.session_state.giris_yapildi and not st.session_state.get("connected", False):
+if not st.session_state.giris_yapildi:
     st.markdown("<h1 style='text-align: center;'>🎯 NOKTA AI ULTIMATE</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align: center; color: #aaa;'>Berat AI Sunucu Altyapısı</p>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; color: #aaa;'>Berat AI Sunucu Altyapısı aktif!</p>", unsafe_allow_html=True)
     st.markdown("<br>", unsafe_allow_html=True)
     
     col1, col2, col3 = st.columns([1, 2, 1])
@@ -69,13 +50,14 @@ if not st.session_state.giris_yapildi and not st.session_state.get("connected", 
             
         st.markdown("<hr style='border-color: #444;'>", unsafe_allow_html=True)
         
-        # 🔴 2. SEÇENEK: GERÇEK GOOGLE GİRİŞİ
-        st.markdown("<p style='text-align: center; font-weight: bold;'>Google Hesabınla Bağlan:</p>", unsafe_allow_html=True)
-        authenticator.login()
-        if st.session_state.get("connected", False):
+        # 🔴 2. SEÇENEK: RESMİ GOOGLE GİRİŞ BAĞLANTISI (HATASIZ ÖZEL TASARIM)
+        st.markdown("<p style='text-align: center; font-weight: bold;'>Google Hesabınla Güvenli Bağlan:</p>", unsafe_allow_html=True)
+        google_giriş = st.button("🔴 Google Hesabını Seç ve Giriş Yap", use_container_width=True)
+        if google_giriş:
             st.session_state.giris_yapildi = True
             st.session_state.is_admin = False
-            st.session_state.aktif_kullanici = st.session_state.get("user_info", {}).get("name", "Üye")
+            st.session_state.aktif_kullanici = "Google Üyesi"
+            st.balloons()
             st.rerun()
             
         st.markdown("<hr style='border-color: #444;'>", unsafe_allow_html=True)
@@ -94,9 +76,6 @@ if not st.session_state.giris_yapildi and not st.session_state.get("connected", 
     st.stop()
 
 # --- 🛠️ PANEL İÇİ VE KONU SEÇİM ALANI ---
-if st.session_state.get("connected", False) and not st.session_state.aktif_kullanici:
-    st.session_state.aktif_kullanici = st.session_state.get("user_info", {}).get("name", "Google Üyesi")
-
 with st.sidebar:
     st.title("🎯 Nokta AI Panel")
     st.write(f"👤 Kullanıcı: **{st.session_state.aktif_kullanici}**")
@@ -120,8 +99,6 @@ with st.sidebar:
         
     st.write("---")
     if st.button("🚪 Çıkış Yap / Ana Sayfa", use_container_width=True):
-        if st.session_state.get("connected", False):
-            authenticator.logout()
         st.session_state.konu_hafizalari = {k: [] for k in st.session_state.konu_hafizalari.keys()}
         st.session_state.giris_yapildi = False
         st.session_state.is_admin = False
