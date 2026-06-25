@@ -159,7 +159,7 @@ if not st.session_state.giris_yapildi:
                             icerik = f"Merhaba {yeni_isim},\n\nNokta AI onay kodunuz: {st.session_state.dogrulama_kodu}"
                             if gercek_mail_gonder(yeni_eposta, "Nokta AI Onay Kodu 🎯", icerik):
                                 st.success("Kod gönderildi!")
-                                st.rerun()
+                                "st.rerun()"
                             else:
                                 st.error("E-posta hatası oluştu.")
                 else: 
@@ -174,26 +174,32 @@ with st.sidebar:
     st.write("---")
     
     if st.session_state.is_admin:
-        st.markdown("### ➕ Yeni Sohbet Odası Aç")
-        yeni_oda_ismi = st.text_input("Oda Başlığı Yazın:", placeholder="Örn: Drone Araştırması")
-        if st.button("🚀 Odayı Oluştur", use_container_width=True):
+        st.markdown("### ➕ Yeni Sohbet Başlat")
+        yeni_oda_ismi = st.text_input("Başlık Yazın (Örn: Drone Araştırması):")
+        if st.button("🚀 Listeye Ekle", use_container_width=True):
             if yeni_oda_ismi and yeni_oda_ismi not in st.session_state.konu_hafizalari:
                 st.session_state.konu_hafizalari[yeni_oda_ismi] = []
                 st.session_state.secilen_konu = yeni_oda_ismi
-                st.toast(f"🛸 '{yeni_oda_ismi}' odası başarıyla açıldı kurucum!")
                 st.rerun()
 
         st.write("---")
-        st.markdown("### 🛸 Aktif Sohbet Odaların")
-        konu_listesi = list(st.session_state.konu_hafizalari.keys())
-        secilen_konu_kutusu = st.selectbox("Oda Seç:", konu_listesi, index=konu_listesi.index(st.session_state.secilen_konu))
         
-        if secilen_konu_kutusu != st.session_state.secilen_konu:
-            st.session_state.secilen_konu = secilen_konu_kutusu
-            st.rerun()
+        # 🔴 İŞTE O FOTOĞRAFTAKİ GİBİ ALT ALTA LİSTELEME SİHİRBAZI! 🔴
+        st.markdown("<p style='font-weight: bold; color: #888;'>Son Kullanılanlar</p>", unsafe_allow_html=True)
+        
+        for oda in list(st.session_state.konu_hafizalari.keys()):
+            # Eğer oda şu an seçili olan odayla aynıysa rengini belirgin yapıyoruz
+            if oda == st.session_state.secilen_konu:
+                if st.button(f"➡️ {oda}", key=f"btn_{oda}", use_container_width=True, type="primary"):
+                    st.session_state.secilen_konu = oda
+                    st.rerun()
+            else:
+                if st.button(f"{oda}", key=f"btn_{oda}", use_container_width=True):
+                    st.session_state.secilen_konu = oda
+                    st.rerun()
             
         st.write("---")
-        st.markdown("### 📸 Resim İnceleme Alanı")
+        st.markdown("### 📸 Resim İnceleme")
         sohbet_görüntüsü = st.file_uploader("Resim bırakın:", type=["png", "jpg", "jpeg"])
         if sohbet_görüntüsü is not None:
             st.image(sohbet_görüntüsü, use_container_width=True)
@@ -229,7 +235,6 @@ def groq_sohbet_motoru(kullanici_mesaji, base64_goruntu=None):
             
         groq_messages.append({"role": "user", "content": kullanici_mesaji})
             
-        # 🔴 EN GÜNCEL VE ASLA KAPANMAYACAK ANA AMİRAL GEMİSİ MODELİ GELDİ!
         completion = client.chat.completions.create(
             model="llama-3.3-70b-versatile",  
             messages=groq_messages,
