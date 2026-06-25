@@ -1,5 +1,4 @@
 import streamlit as st
-import ollama
 import json
 import os
 import random
@@ -8,15 +7,34 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import datetime
 
+# İnternet üzerinden çalışan yapay zeka kütüphanesi
+try:
+    from groq import Groq
+except ImportError:
+    os.system("pip install groq")
+    from groq import Groq
+
 # Sayfa Ayarları
-st.set_page_config(page_title="Nokta AI Ultimate Edition", page_icon="🎯", layout="wide")
+st.set_page_config(page_title="Nokta AI Ultimate Cloud", page_icon="🎯", layout="wide")
 
 VERITABANI_DOSYASI = "kullanicilar.json"
 HAFIZA_DOSYASI = "yapay_zekahafiza.json"
 
-# --- 📧 GERÇEK E-POSTA BİLGİLERİ ---
-GÖNDERİCİ_MAİL = "noktaaioffical@gmail.com"  
-GÖNDERİCİ_ŞİFRE = "pxpxynxaxkictlew"  
+# --- 🔐 GÜVENLİK AYARLARI (STREAMLIT CLOUD İÇİN) ---
+if "GROQ_API_KEY" in st.secrets:
+    GROQ_KEY = st.secrets["GROQ_API_KEY"]
+    GÖNDERİCİ_MAİL = st.secrets["GENDERICI_MAIL"]
+    GÖNDERİCİ_ŞİFRE = st.secrets["GENDERICI_SIFRE"]
+else:
+    GROQ_KEY = ""
+    GÖNDERİCİ_MAİL = "noktaaioffical@gmail.com"
+    GÖNDERİCİ_ŞİFRE = "pxpxynxaxkictlew"
+
+# Yapay Zeka Bulut Motorunu Başlat
+try:
+    client = Groq(api_key=GROQ_KEY)
+except:
+    client = None
 
 # --- 📩 GERÇEK E-POSTA GÖNDERME MOTORU ---
 def gercek_mail_gonder(alici_mail, konu, mesaj_icerigi):
@@ -90,12 +108,12 @@ if "sifre_unuttum_modu" not in st.session_state: st.session_state.sifre_unuttum_
 if "sifre_kodu" not in st.session_state: st.session_state.sifre_kodu = None
 if "is_admin" not in st.session_state: st.session_state.is_admin = False
 
-# Arkada doğum günlerini otomatik kontrol et
+# Doğum günlerini kontrol et
 otomatik_dogum_gunu_kontrol()
 
 # --- GİRİŞ VE KAYIT EKRANLARI ---
 if not st.session_state.giris_yapildi:
-    st.markdown("<h1 style='text-align: center;'>🎯 NOKTA AI ULTIMATE</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align: center;'>🎯 NOKTA AI ULTIMATE CLOUD</h1>", unsafe_allow_html=True)
     
     if st.session_state.sifre_unuttum_modu:
         st.subheader("🔑 Şifre Sıfırlama Merkezi")
@@ -115,7 +133,7 @@ if not st.session_state.giris_yapildi:
                             veriler[k]["sifre"] = ys
                     with open(VERITABANI_DOSYASI, "w", encoding="utf-8") as f:
                         json.dump(veriler, f, ensure_ascii=False, indent=4)
-                    st.success("Şifre değişti!")
+                    st.success("Şifreniz başarıyla güncellendi!")
                     st.session_state.sifre_unuttum_modu = False
                     st.rerun()
         if st.button("⬅️ Geri Dön"): st.session_state.sifre_unuttum_modu = False; st.rerun()
@@ -183,7 +201,7 @@ with st.sidebar:
     
     yuklenen_resim = st.file_uploader("🖼️ Profil Resmi veya Görsel Yükle", type=["png", "jpg", "jpeg"])
     if yuklenen_resim is not None:
-        st.image(yuklenen_resim, caption="Yüklediğin Harika Görsel!", use_container_width=True)
+        st.image(yuklenen_resim, caption="Yüklediğin Görsel!", use_container_width=True)
         
     st.write("---")
     if st.button("🚪 Çıkış Yap", use_container_width=True):
@@ -193,8 +211,8 @@ with st.sidebar:
 
 # --- 👑 MOD 1: ADMIN PANELİ ---
 if st.session_state.is_admin:
-    st.title("👑 Nokta AI Yönetim ve İstihbarat Merkezi")
-    sekme_chat, sekme_kullanicilar, sekme_toplu_mail = st.tabs(["💬 Nokta AI Motorunu Dene", "📊 Kullanıcı Listesi", "📣 TÜM ÜYELERE MAİL AT"])
+    st.title("👑 Nokta AI Yönetim Merkez")
+    sekme_chat, sekme_kullanicilar, sekme_toplu_mail = st.tabs(["💬 Nokta AI Bulut Motoru", "📊 Kullanıcı Listesi", "📣 TÜM ÜYELERE MAİL AT"])
     
     with sekme_toplu_mail:
         st.subheader("📬 Kayıtlı İnsanların Maillerine Buradan Mail At")
@@ -205,13 +223,12 @@ if st.session_state.is_admin:
             if mail_konusu and mail_mesaji:
                 tum_uyeler = kullanicilari_yukle()
                 gonderilen_sayi = 0
-                with st.spinner("Tüm üyelere mailler tek tek fırlatılıyor..."):
-                    for u_adi, u_bilgi in tum_uyeler.items():
-                        if "eposta" in u_bilgi:
-                            if gercek_mail_gonder(u_bilgi["eposta"], mail_konusu, mail_mesaji):
-                                gonderilen_sayi += 1
-                st.success(f"🔥 Başarılı! Toplam {gonderilen_sayi} arkadaşına mail başarıyla uçuruldu!")
-            else: st.warning("Lütfen alanları boş bırakma Kurucum!")
+                for u_adi, u_bilgi in tum_uyeler.items():
+                    if "eposta" in u_bilgi:
+                        if gercek_mail_gonder(u_bilgi["eposta"], mail_konusu, mail_mesaji):
+                            gonderilen_sayi += 1
+                st.success(f"🔥 Başarılı! Toplam {gonderilen_sayi} kişiye mail uçuruldu!")
+            else: st.warning("Lütfen alanları doldur Kurucum!")
 
     with sekme_kullanicilar:
         st.subheader("👥 Platformdaki Kayıtlı Kişiler")
@@ -227,10 +244,19 @@ if st.session_state.is_admin:
         if ks := st.chat_input("NOKTA AI'a Sor..."):
             with st.chat_message("user"): st.write(ks)
             st.session_state.mesajlar.append({'role': 'user', 'content': ks})
-            try:
-                response = ollama.chat(model='gemma2:2b', messages=st.session_state.mesajlar)
-                cevap = response['message']['content']
-            except: cevap = "Nokta AI motoru kapalı! Lütfen arka planda Gemma modelini çalıştır şef."
+            
+            if client:
+                try:
+                    chat_completion = client.chat.completions.create(
+                        messages=[{"role": m["role"], "content": m["content"]} for m in st.session_state.mesajlar],
+                        model="llama3-8b-8192",
+                    )
+                    cevap = chat_completion.choices[0].message.content
+                except:
+                    cevap = "Bulut motorunda yoğunluk var, lütfen tekrar dene."
+            else:
+                cevap = "API Anahtarı eksik!"
+                
             with st.chat_message("assistant"): st.write(cevap)
             st.session_state.mesajlar.append({'role': 'assistant', 'content': cevap})
             st.rerun()
@@ -238,7 +264,7 @@ if st.session_state.is_admin:
 # --- 👤 MOD 2: NORMAL KULLANICI PANELİ ---
 else:
     st.title("💬 Nokta AI Sohbet Odası")
-    st.info("🚀 Sınırsız ve Ücretsiz Nokta AI Deneyimi Aktif!")
+    st.info("🚀 7/24 Kesintisiz Bulut Sistemi Aktif!")
 
     for m in st.session_state.mesajlar:
         with st.chat_message(m["role"]): st.write(m["content"])
@@ -249,12 +275,18 @@ else:
         
         with st.chat_message("assistant"):
             with st.spinner("Nokta AI Düşünüyor..."):
-                try:
-                    response = ollama.chat(model='gemma2:2b', messages=st.session_state.mesajlar)
-                    cevap = response['message']['content']
-                except:
-                    cevap = "Nokta AI zeka motoruna şu an bağlanamadım. Kurucunun sistemi arka planda açması gerekiyor."
-        
+                if client:
+                    try:
+                        chat_completion = client.chat.completions.create(
+                            messages=[{"role": m["role"], "content": m["content"]} for m in st.session_state.mesajlar],
+                            model="llama3-8b-8192",
+                        )
+                        cevap = chat_completion.choices[0].message.content
+                    except:
+                        cevap = "Sistem şu an yoğun, saniyeler içinde tekrar yaz şef!"
+                else:
+                    cevap = "Zeka motoru şu an uykuda."
+                    
         with st.chat_message("assistant"): st.write(cevap)
         st.session_state.mesajlar.append({'role': 'assistant', 'content': cevap})
         st.rerun()
