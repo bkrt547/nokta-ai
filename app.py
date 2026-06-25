@@ -235,7 +235,7 @@ if st.session_state.is_admin:
         
         if st.button("🚀 TOPLU MAİLİ ŞİMDİ FIRLAT", use_container_width=True):
             if mail_konusu and mail_mesaji:
-                tum_uyeler = kullanicilari_yukne()
+                tum_uyeler = kullanicilari_yukle()
                 gonderilen_sayi = 0
                 with st.spinner("Tüm üyelere mailler tek tek fırlatılıyor..."):
                     for u_adi, u_bilgi in tum_uyeler.items():
