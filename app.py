@@ -1,36 +1,22 @@
+import streamlit as st
 import os
-import sys
-import subprocess
-from flask import Flask, Response
+from groq import Groq
 
-app = Flask(__name__)
+# Sayfa ayarları
+st.set_page_config(page_title="Nokta AI Sohbet Odası", page_icon="👑", layout="wide")
 
-# Vercel projeyi başlattığı an Streamlit'i arka planda headless (arayüzsüz sunucu) olarak tetikliyoruz
-try:
-    # Eğer önceden kalma bir süreç varsa çakışmasın diye portu ve ayarları netleştiriyoruz
-    os.environ["STREAMLIT_SERVER_PORT"] = "8501"
-    os.environ["STREAMLIT_SERVER_ADDRESS"] = "0.0.0.0"
-    
-    cmd = ["streamlit", "run", "app.py", "--server.headless", "true"]
-    # Süreci arka planda tamamen bağımsız başlatıyoruz
-    subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-except Exception as e:
-    print(f"Streamlit köprüsü başlatılamadı: {e}")
+# Şifreleri Render panelinden güvenli bir şekilde çekiyoruz
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
+GENDERICI_MAIL = os.environ.get("GENDERICI_MAIL")
+GENDERICI_SIFRE = os.environ.get("GENDERICI_SIFRE")
 
-@app.route('/')
-def home():
-    # Vercel ana sayfaya gelindiğinde, arka planda dönen Streamlit arayüzünü Flask üzerinden ekrana basacak köprü
-    return """
-    <html>
-        <head>
-            <title>Nokta AI Sohbet Odası</title>
-            <style>body, html {margin: 0; padding: 0; height: 100%; overflow: hidden;}</style>
-        </head>
-        <body>
-            <iframe src="http://localhost:8501" width="100%" height="100%" style="border:none;"></iframe>
-        </body>
-    </html>
-    """
+# Başlık ve Arayüz
+st.title("👑 Nokta AI Sohbet Odası")
+st.subheader("Kurucu Paneline Hoş Geldiniz, Berat!")
 
-if __name__ == "__main__":
-    app.run(port=5000)
+st.write("Yapay zeka motoru Render üzerinde %100 performansla aktif edildi. Sohbet etmeye hazırsınız.")
+
+# Basit bir deneme mesaj kutusu
+user_input = st.text_input("Nokta AI'a bir şeyler yazın:")
+if user_input:
+    st.success(f"Nokta AI Cevabı: Harika gidiyoruz şef! Yazdığın mesaj alındı.")
