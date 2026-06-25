@@ -62,7 +62,6 @@ def kullanici_kaydet(k_adi, sifre, gercek_isim, e_posta):
     return "basarili"
 
 # --- 🧠 DİNAMİK SOHBET ODALARI HAFIZASI ---
-# Sabit listeyi kaldırdık, ilk oda Genel Sohbet olarak başlıyor, gerisini sen ekleyeceksin şef!
 if "konu_hafizalari" not in st.session_state:
     st.session_state.konu_hafizalari = {
         "💬 Genel Sohbet": []
@@ -110,7 +109,6 @@ if not st.session_state.giris_yapildi:
 
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
-        # 🚀 1. GİRİŞ YAPMADAN DEVAM ET (SOHBETLER GİZLİ)
         hizli_gecis = st.button("🚀 Oturum Açmadan Devam Et", use_container_width=True)
         if hizli_gecis:
             st.session_state.giris_yapildi = True
@@ -120,7 +118,6 @@ if not st.session_state.giris_yapildi:
             
         st.markdown("<hr style='border-color: #444;'>", unsafe_allow_html=True)
         
-        # 📝 KLASİK GİRİŞ VE ÜYE KAYIT
         sekme1, sekme2 = st.tabs(["🚪 Klasik Oturum Aç", "📝 Ücretsiz Kayıt Ol"])
         
         with sekme1:
@@ -176,7 +173,6 @@ with st.sidebar:
     st.write(f"🛡️ Rol: **{'👑 KURUCU' if st.session_state.is_admin else '👤 ÜYE / ZİYARETÇİ'}**")
     st.write("---")
     
-    # 🔴 KURUCUYA ÖZEL DİNAMİK ODA EKLEME SİSTEMİ 🔴
     if st.session_state.is_admin:
         st.markdown("### ➕ Yeni Sohbet Odası Aç")
         yeni_oda_ismi = st.text_input("Oda Başlığı Yazın:", placeholder="Örn: Drone Araştırması")
@@ -233,8 +229,9 @@ def groq_sohbet_motoru(kullanici_mesaji, base64_goruntu=None):
             
         groq_messages.append({"role": "user", "content": kullanici_mesaji})
             
+        # 🔴 EN GÜNCEL VE ASLA KAPANMAYACAK ANA AMİRAL GEMİSİ MODELİ GELDİ!
         completion = client.chat.completions.create(
-            model="llama-3.3-70b-specdec",  # Yeni akıllı vision model!
+            model="llama-3.3-70b-versatile",  
             messages=groq_messages,
             temperature=0.6,
             max_tokens=1024,
@@ -284,7 +281,7 @@ if st.session_state.is_admin:
             st.session_state.konu_hafizalari[st.session_state.secilen_konu].append({'role': 'user', 'content': ks})
             
             b64_img = goruntuyu_base64_yap(sohbet_görüntüsü) if sohbet_görüntüsü else None
-            with st.spinner("Yeni Akıllı Yapay Zeka Motoru Düşünüyor..."):
+            with st.spinner("Yapay Zeka Motoru Düşünüyor..."):
                 cevap = groq_sohbet_motoru(ks, b64_img)
                 
             with st.chat_message("assistant"): st.write(cevap)
