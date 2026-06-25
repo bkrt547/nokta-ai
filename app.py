@@ -8,11 +8,16 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from io import BytesIO
 from groq import Groq
+import torch
+from diffusers import FluxPipeline # 🎨 İşte o dahi resim motoru!
 
 # Sayfa Ayarları
-st.set_page_config(page_title="Nokta AI Kurucu Özel Sürüm", page_icon="👑", layout="wide")
+st.set_page_config(page_title="Nokta AI Ultimate Art", page_icon="🎨", layout="wide")
 
+# --- 📂 DOSYA VE HAFIZA AYARLARI ---
 VERITABANI_DOSYASI = "kullanicilar.json"
+RESIM_KLASORU = "olusturulan_resimler"
+os.makedirs(RESIM_KLASORU, exist_ok=True) # Resimler buraya kaydolacak şef!
 
 # --- 📧 GERÇEK E-POSTA BİLGİLERİ ---
 GÖNDERİCİ_MAİL = "noktaaioffical@gmail.com"  
@@ -86,7 +91,7 @@ def goruntuyu_base64_yap(yuklenen_dosya):
 
 # --- GİRİŞ VE KAYIT EKRANI ---
 if not st.session_state.giris_yapildi:
-    st.markdown("<h1 style='text-align: center;'>🎯 NOKTA AI ULTIMATE KANALI</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align: center;'>🎯 NOKTA AI ULTIMATE ART</h1>", unsafe_allow_html=True)
     st.markdown("<p style='text-align: center; color: #aaa;'>Kurucu: Berat</p>", unsafe_allow_html=True)
     st.markdown("<br>", unsafe_allow_html=True)
 
@@ -175,7 +180,7 @@ with st.sidebar:
     
     if st.session_state.is_admin:
         st.markdown("### ➕ Yeni Sohbet Başlat")
-        yeni_oda_ismi = st.text_input("Başlık Yazın (Örn: Drone Araştırması):")
+        yeni_oda_ismi = st.text_input("Başlık Yazın (Örn: Drone Çizimleri):")
         if st.button("🚀 Listeye Ekle", use_container_width=True):
             if yeni_oda_ismi and yeni_oda_ismi not in st.session_state.konu_hafizalari:
                 st.session_state.konu_hafizalari[yeni_oda_ismi] = []
@@ -184,11 +189,9 @@ with st.sidebar:
 
         st.write("---")
         
-        # 🔴 İŞTE O FOTOĞRAFTAKİ GİBİ ALT ALTA LİSTELEME SİHİRBAZI! 🔴
-        st.markdown("<p style='font-weight: bold; color: #888;'>Son Kullanılanlar</p>", unsafe_allow_html=True)
-        
-        for oda in list(st.session_state.konu_hafizalari.keys()):
-            # Eğer oda şu an seçili olan odayla aynıysa rengini belirgin yapıyoruz
+        st.markdown("<p style='font-weight: bold; color: #888;'>Sohbet Odaların</p>", unsafe_allow_html=True)
+        konu_listesi = list(st.session_state.konu_hafizalari.keys())
+        for oda in konu_listesi:
             if oda == st.session_state.secilen_konu:
                 if st.button(f"➡️ {oda}", key=f"btn_{oda}", use_container_width=True, type="primary"):
                     st.session_state.secilen_konu = oda
@@ -205,7 +208,7 @@ with st.sidebar:
             st.image(sohbet_görüntüsü, use_container_width=True)
         st.write("---")
     else:
-        st.warning("🔒 Sohbet odaları ve özel konular sadece kurucuya özeldir!")
+        st.warning("🔒 Sohbet odaları sadece kurucuya özeldir!")
         sohbet_görüntüsü = None
 
     if st.button("🚪 Çıkış Yap / Ana Sayfa", use_container_width=True):
@@ -213,7 +216,7 @@ with st.sidebar:
         st.session_state.is_admin = False
         st.rerun()
 
-# --- 🔥 GÜÇLÜ GROQ SOHBET MOTORU ---
+# --- 🔥 GÜÇLÜ GROQ SOHBET MOTORU (RESİM OKUMALI) ---
 def groq_sohbet_motoru(kullanici_mesaji, base64_goruntu=None):
     if not GROQ_API_KEY:
         return "Hata: GROQ_API_KEY Render panellerinde eksik şef!"
@@ -224,19 +227,24 @@ def groq_sohbet_motoru(kullanici_mesaji, base64_goruntu=None):
             f"Senin adın Nokta AI Ultimate. Sen Berat tarafından geliştirilmiş harika bir yapay zekasın. "
             f"Berat bir ilkokul öğrencisidir ve bu platformun dahi mucididir. Ona hep 'Şef' veya 'Kurucum' de. "
             f"Şu anki konuşulan aktif oda konusu: {st.session_state.secilen_konu}. "
-            f"Bu konunun içeriğine ve kurallarına göre bir uzman gibi davran. "
             f"Kurucunun ek eğitim talimatı: {st.session_state.ek_egitim_notu}. "
-            f"Kısa, enerjik, çok zeki ve net Türkçe cevaplar ver."
+            f"Kısa, enerjik, çok zeki, dürüst ve net Türkçe cevaplar ver."
         )
         
         groq_messages = [{"role": "system", "content": system_instruction}]
         for m in st.session_state.konu_hafizalari[st.session_state.secilen_konu]:
             groq_messages.append({"role": m["role"], "content": m["content"]})
             
-        groq_messages.append({"role": "user", "content": kullanici_mesaji})
+        icerik_listesi = [{"type": "text", "text": kullanici_mesaji}]
+        if base64_goruntu:
+            icerik_listesi.append({
+                "type": "image_url",
+                "image_url": {"url": f"data:image/jpeg;base64,{base64_goruntu}"}
+            })
+        groq_messages.append({"role": "user", "content": icerik_listesi})
             
         completion = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",  
+            model="llama-3.2-11b-vision-preview",  
             messages=groq_messages,
             temperature=0.6,
             max_tokens=1024,
@@ -245,33 +253,63 @@ def groq_sohbet_motoru(kullanici_mesaji, base64_goruntu=None):
     except Exception as e:
         return f"Bağlantı Hatası: {e}"
 
+# --- 🎨 MUDAZZAM FLUX.1 RESİM OLUŞTURMA MOTORU FONKSİYONU 🎨 ---
+@st.cache_resource # Motoru sadece bir kez yükle, Render'ı yorma şef!
+def resim_motorunu_yukle():
+    if not torch.cuda.is_available(): # Eğer güçlü GPU yoksa işlemciyi kullan (Render'da yavaş olabilir)
+        return "GPU_YOK", None
+    
+    with st.spinner("🚀 Nokta AI Resim Motoru (Flux.1) yükleniyor, bu biraz sürebilir şef..."):
+        pipe = FluxPipeline.from_pretrained("black-forest-labs/flux-1-dev", torch_dtype=torch.float16)
+        pipe.enable_model_cpu_offload() # RAM'i koruma modu!
+        return "BASARILI", pipe
+
+status, resim_pipe = resim_motorunu_yukle()
+
+def resim_ciz_motoru(prompt):
+    if status != "BASARILI":
+        return None, "Gözlü Motor Hatası: Render ücretsiz GPU'su şu an yoğun veya motor yüklenemedi. Sonra tekrar deneyelim şef!"
+    
+    try:
+        with st.spinner(f"🎨 Nokta AI Ultimate hayalindeki '{prompt}' resmini çiziyor, pırıl pırıl bir drone tasarımı geliyor..."):
+            resim = resim_pipe(
+                prompt,
+                guidance_scale=3.5,
+                num_inference_steps=20, # Adım sayısı, hızı belirler.
+                generator=torch.Generator("cpu").manual_seed(random.randint(0, 999999)) # Her seferinde farklı çizim.
+            ).images[0]
+            
+            resim_id = f"resim_{random.randint(1000, 9999)}.png"
+            resim_yolu = os.path.join(RESIM_KLASORU, resim_id)
+            resim.save(resim_yolu)
+            return resim_yolu, None
+    except Exception as e:
+        return None, f"Resim Çizme Hatası: {e}"
+
 # --- 👑 GERÇEK KURUCU EKRANI VE PANELLERİ ---
 if st.session_state.is_admin:
     st.title("👑 Nokta AI Kurucu Yönetim Merkezi")
     
-    sekme_chat, sekme_rapor, sekme_egitme = st.tabs(["💬 Sohbet Odalarında Gezin", "📊 Üye Sayısı & Rapor", "🧠 Yapay Zeka Eğitme Paneli"])
+    sekme_chat, sekme_rapor, sekme_egitme = st.tabs(["💬 Sohbet & Resim Odaları", "📊 Üye Sayısı & Rapor", "🧠 Yapay Zeka Eğitme"])
     
     with sekme_rapor:
-        st.subheader("📊 Platform Raporu ve Analiz Merkezi")
+        st.subheader("📊 Platform Raporu")
         tum_uyeler = kullanicilari_yukle()
-        toplam_uye_sayisi = len(tum_uyeler)
-        
         c1, c2 = st.columns(2)
-        c1.metric(label="👥 Sistemdeki Kayıtlı Toplam Üye Sayısı", value=f"{toplam_uye_sayisi} Kişi")
-        c2.metric(label="🟢 Sunucu Performansı", value="%100 Aktif")
-        
+        c1.metric(label="👥 Toplam Üye Sayısı", value=f"{len(tum_uyeler)} Kişi")
+        c2.metric(label="🔵 Resim Motoru Durumu", value="🧠 Flux.1 Aktif" if status == "BASARILI" else "🔴 Çevrimdışı")
         st.write("---")
-        st.markdown("#### 👥 Kayıtlı Üyelerin Listesi")
+        st.markdown("#### 👥 Üye Listesi")
         if tum_uyeler:
             for k, v in tum_uyeler.items():
-                st.info(f"👤 **Kullanıcı Adı:** {k} | **Gerçek İsim:** {v['isim']} | **E-posta:** {v['eposta']}")
+                st.info(f"👤 **Kullanıcı:** {k} | **İsim:** {v['isim']}")
         else: 
-            st.write("Sistemde şu an kayıtlı üye bulunmuyor şef.")
+            st.write("Sistemde henüz üye yok şef.")
 
     with sekme_egitme:
-        st.subheader("🧠 Nokta AI Zeka Motorunu Geliştir ve Eğit")
-        yeni_talimat = st.text_area("Yapay Zekaya Verilecek Ek Eğitim Notu / Gizli Emir:", value=st.session_state.ek_egitim_notu)
-        if st.button("🧠 Zeka Motorunu Güncelle ve Eğit", use_container_width=True):
+        st.subheader("🧠 Nokta AI Zeka Motorunu Eğit")
+        yeni_talimat = st.text_area("Yapay Zekaya Verilecek Gizli Emir:", value=st.session_state.ek_egitim_notu)
+        if st.button("🧠 Zeka Motorunu Güncelle", use_container_width=True):
             st.session_state.ek_egitim_notu = yeni_talimat
             st.success("🔥 Harika! Yapay zeka bu yeni emirlerle eğitildi kurucum!")
 
@@ -279,24 +317,46 @@ if st.session_state.is_admin:
         st.subheader(f"💬 Aktif Sohbet Odası: {st.session_state.secilen_konu}")
         
         for m in st.session_state.konu_hafizalari[st.session_state.secilen_konu]:
-            with st.chat_message(m["role"]): st.write(m["content"])
+            with st.chat_message(m["role"]):
+                if m["role"] == "assistant" and m.get("type") == "image":
+                    # Eğer assistanın cevabı bir resimse, resmi gösteriyoruz şef!
+                    st.image(m["content"], caption="Nokta AI Tarafından Çizilen Sanat!", use_container_width=True)
+                else:
+                    st.write(m["content"])
             
-        if ks := st.chat_input("Nokta AI'a Kurucu Emri Fırlat...", key="admin_chat_box"):
+        if ks := st.chat_input("Nokta AI'a sor veya 'çiz' komutu fırlat...", key="admin_chat_box"):
             with st.chat_message("user"): st.write(ks)
             st.session_state.konu_hafizalari[st.session_state.secilen_konu].append({'role': 'user', 'content': ks})
             
             b64_img = goruntuyu_base64_yap(sohbet_görüntüsü) if sohbet_görüntüsü else None
-            with st.spinner("Yapay Zeka Motoru Düşünüyor..."):
-                cevap = groq_sohbet_motoru(ks, b64_img)
+            
+            # 🎨 RESİM ÇİZME MANTIĞI: Eğer mesajda 'çiz' veya 'oluştur' geçiyorsa:
+            if any(kelime in ks.lower() for kelime in ["çiz", "oluştur", "create image"]):
+                resim_yolu, hata = resim_ciz_motoru(ks.replace("çiz", "").replace("oluştur", "").strip())
                 
-            with st.chat_message("assistant"): st.write(cevap)
-            st.session_state.konu_hafizalari[st.session_state.secilen_konu].append({'role': 'assistant', 'content': cevap})
-            st.rerun()
+                with st.chat_message("assistant"):
+                    if hata:
+                        st.error(hata)
+                        st.session_state.konu_hafizalari[st.session_state.secilen_konu].append({'role': 'assistant', 'content': hata, 'type': 'text'})
+                    else:
+                        # Çizilen resmi asistandan göster ve hafızaya 'resim' tipinde kaydet!
+                        st.image(resim_yolu, caption="Hayalindeki Çizim Hazır Kurucum!", use_container_width=True)
+                        st.session_state.konu_hafizalari[st.session_state.secilen_konu].append({'role': 'assistant', 'content': resim_yolu, 'type': 'image'})
+                st.rerun()
+                
+            else: # Eğer sadece sohbet ediyorsa:
+                with st.spinner("Groq Motoru Düşünüyor..."):
+                    cevap = groq_sohbet_motoru(ks, b64_img)
+                    
+                with st.chat_message("assistant"): st.write(cevap)
+                st.session_state.konu_hafizalari[st.session_state.secilen_konu].append({'role': 'assistant', 'content': cevap, 'type': 'text'})
+                st.rerun()
 
 # --- 👤 NORMAL MİSAFİR EKRANI ---
 else:
     st.title("🎯 Nokta AI Ziyaretçi Kanalı")
-    st.info("👋 Hoş geldin! Şu an Oturum Açmadan (Misafir Modu) bağlandın. Sadece genel test mesajı fırlatabilirsin:")
+    st.info("👋 Merhaba! Sohbet odaları sadece kurucuya özeldir.")
+    st.caption("Genel test mesajı:")
     
     if "misafir_mesajlar" not in st.session_state:
         st.session_state.misafir_mesajlar = []
@@ -309,6 +369,6 @@ else:
         st.session_state.misafir_mesajlar.append({'role': 'user', 'content': ks})
         
         with st.chat_message("assistant"):
-            st.write("Merhaba! Ben Nokta AI. Şu an misafir modundasın, kurucu odalarına girmek için kurucu girişi yapılması gerekir!")
+            st.write("Merhaba! Ben Nokta AI. Sohbet odalarına kurucu girişiyle ulaşılabilir şef!")
             st.session_state.misafir_mesajlar.append({'role': 'assistant', 'content': "Misafir modu yanıtı."})
         st.rerun()
