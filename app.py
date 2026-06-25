@@ -1,239 +1,189 @@
 import streamlit as st
 import json
 import os
-import random
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-from datetime import datetime
-from groq import Groq  # Bulut yapay zeka motorumuz aktif!
+import base64
+from io import BytesIO
+from groq import Groq
+from streamlit_google_auth import Authenticate
 
 # Sayfa Ayarları
-st.set_page_config(page_title="Nokta AI Ultimate Edition", page_icon="🎯", layout="wide")
+st.set_page_config(page_title="Nokta AI Ultimate Konular", page_icon="🎯", layout="wide")
 
 VERITABANI_DOSYASI = "kullanicilar.json"
 
-# --- 📧 GERÇEK E-POSTA BİLGİLERİ ---
-GÖNDERİCİ_MAİL = "noktaaioffical@gmail.com"  
-GÖNDERİCİ_ŞİFRE = "gpbfxxerhtwakuwd"  # Senin o canavar yeni anahtarın!
-
-# --- 🔑 GROQ API KEY BAĞLANTISI ---
+# --- 🔑 API BAĞLANTILARI ---
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
+GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "TEST_MODU")
+GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "TEST_MODU")
 
-# --- 📩 GERÇEK E-POSTA GÖNDERME MOTORU ---
-def gercek_mail_gonder(alici_mail, konu, mesaj_icerigi):
-    try:
-        server = smtplib.SMTP("smtp.gmail.com", 587)
-        server.starttls()
-        server.login(GÖNDERİCİ_MAİL, GÖNDERİCİ_ŞİFRE)
-        msg = MIMEMultipart()
-        msg['From'] = GÖNDERİCİ_MAİL
-        msg['To'] = alici_mail
-        msg['Subject'] = konu
-        msg.attach(MIMEText(mesaj_icerigi, 'plain', 'utf-8'))
-        server.sendmail(GÖNDERİCİ_MAİL, alici_mail, msg.as_string())
-        server.quit()
-        return True
-    except:
-        return False
+# Google Kimlik Doğrulayıcı
+authenticator = Authenticate(
+    secret_key="nokta_ai_gizli_anahtar_99",
+    cookie_name="nokta_ai_oauth",
+    cookie_expiry_days=30,
+    client_id=GOOGLE_CLIENT_ID,
+    client_secret=GOOGLE_CLIENT_SECRET,
+    redirect_uri="https://nokta-ai.onrender.com",
+)
 
-# --- KULLANICI VERİTABANI FONKSİYONLARI ---
-def kullanicilari_yukle():
-    if os.path.exists(VERITABANI_DOSYASI):
-        with open(VERITABANI_DOSYASI, "r", encoding="utf-8") as f:
-            try:
-                return json.load(f)
-            except:
-                return {}
-    return {}
-
-def kullanici_kaydet(k_adi, sifre, gercek_isim, e_posta):
-    veriler = kullanicilari_yukle()
-    temiz_eposta = e_posta.lower().strip()
-    if k_adi in veriler: return "kullanici_var"
-    veriler[k_adi] = {
-        "sifre": sifre, 
-        "isim": gercek_isim, 
-        "eposta": temiz_eposta
-    }
-    with open(VERITABANI_DOSYASI, "w", encoding="utf-8") as f:
-        json.dump(veriler, f, ensure_ascii=False, indent=4)
-    return "basarili"
+authenticator.check_authentification()
 
 # --- SESSION STATES ---
 if "mesajlar" not in st.session_state: st.session_state.mesajlar = []
 if "giris_yapildi" not in st.session_state: st.session_state.giris_yapildi = False
-if "dogrulama_kodu" not in st.session_state: st.session_state.dogrulama_kodu = None
-if "gecici_kayit" not in st.session_state: st.session_state.gecici_kayit = {}
 if "is_admin" not in st.session_state: st.session_state.is_admin = False
 if "aktif_kullanici" not in st.session_state: st.session_state.aktif_kullanici = ""
+if "secilen_konu" not in st.session_state: st.session_state.secilen_konu = "Genel Sohbet"
 
-# --- GİRİŞ VE KAYIT EKRANLARI ---
-if not st.session_state.giris_yapildi:
+# --- 🖼️ GÖRÜNTÜ ÇEVİRİCİ SİHİRBAZ ---
+def goruntuyu_base64_yap(yuklenen_dosya):
+    if yuklenen_dosya is not None:
+        return base64.b64encode(yuklenen_dosya.getvalue()).decode("utf-8")
+    return None
+
+# --- GİRİŞ VE HIZLI GEÇİŞ EKRANI ---
+if not st.session_state.giris_yapildi and not st.session_state.get("connected", False):
     st.markdown("<h1 style='text-align: center;'>🎯 NOKTA AI ULTIMATE</h1>", unsafe_allow_html=True)
-    
-    # --- 🔴 GİZLİ MUCİT DOKUNUŞU: GOOGLE ILE GIRIS BUTONU 🔴 ---
+    st.markdown("<p style='text-align: center; color: #aaa;'>Berat AI Sunucu Altyapısı</p>", unsafe_allow_html=True)
     st.markdown("<br>", unsafe_allow_html=True)
+    
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
-        google_butonu = st.button("🔴 Google ile Giriş Yap (Hızlı Bağlantı)", use_container_width=True)
-        if google_butonu:
-            # Gerçek Google Auth simülasyonu: Arkadaşların hiç beklemeden sisteme bir Google üyesi gibi sızar!
+        # 🟢 1. SEÇENEK: GİRİŞ YAPMADAN DEVAM ET BUTONU
+        hizli_gecis = st.button("🚀 Giriş Yapmadan Devam Et (Misafir Modu)", use_container_width=True)
+        if hizli_gecis:
             st.session_state.giris_yapildi = True
             st.session_state.is_admin = False
-            st.session_state.aktif_kullanici = "Değerli Google Üyesi"
-            st.balloons()
-            st.success("Google Hesabınız Doğrulandı! Giriş yapılıyor...")
+            st.session_state.aktif_kullanici = "Ziyaretçi Arkadaş"
             st.rerun()
             
-    st.markdown("<p style='text-align: center; color: gray;'>- VEYA KLASİK YÖNTEMİ KULLAN -</p>", unsafe_allow_html=True)
-
-    if st.session_state.dogrulama_kodu:
-        st.subheader("📩 Hesap Doğrulama Alanı")
-        kg = st.text_input("E-postanıza Gelen 6 Haneli Onay Kodunu Yazın:")
-        if st.button("Hesabımı Onayla ve Giriş Yap 🚀"):
-            if kg == st.session_state.dogrulama_kodu:
-                g = st.session_state.gecici_kayit
-                kullanici_kaydet(g["k_adi"], g["sifre"], g["isim"], g["eposta"])
-                st.success("Mükemmel! Hesabın başarıyla oluşturuldu şef. Şimdi Oturum Aç sekmesinden girebilirsin!")
-                st.session_state.dogrulama_kodu = None
-                st.rerun()
-            else: 
-                st.error("Doğrulama kodu hatalı, e-postanı tekrar kontrol et kurucum!")
-        if st.button("⬅️ İptal Et ve Geri Dön"):
-            st.session_state.dogrulama_kodu = None
+        st.markdown("<hr style='border-color: #444;'>", unsafe_allow_html=True)
+        
+        # 🔴 2. SEÇENEK: RESMİ GOOGLE GİRİŞİ
+        st.markdown("<p style='text-align: center; font-weight: bold;'>Google Hesabınla Bağlan:</p>", unsafe_allow_html=True)
+        authenticator.login()
+        if st.session_state.get("connected", False):
+            st.session_state.giris_yapildi = True
+            st.session_state.is_admin = False
+            st.session_state.aktif_kullanici = st.session_state.get("user_info", {}).get("name", "Üye")
             st.rerun()
-        st.stop()
-
-    sekme1, sekme2 = st.tabs(["🚪 Klasik Oturum Aç", "📝 Ücretsiz Kayıt Ol"])
-    with sekme1:
-        k_adi_input = st.text_input("Kullanıcı Adı")
-        sifre_input = st.text_input("Şifre", type="password")
-        if st.button("Giriş Yap", use_container_width=True):
+            
+        st.markdown("<hr style='border-color: #444;'>", unsafe_allow_html=True)
+        
+        # 👑 3. SEÇENEK: KURUCU GİRİŞİ
+        k_adi_input = st.text_input("Kurucu Kullanıcı Adı")
+        sifre_input = st.text_input("Kurucu Şifresi", type="password")
+        if st.button("Kurucu Panelini Aç", use_container_width=True):
             if k_adi_input == "admin" and sifre_input == "berat123":
                 st.session_state.giris_yapildi = True
                 st.session_state.is_admin = True
                 st.session_state.aktif_kullanici = "Yapay Zeka Mucidi Berat"
                 st.rerun()
             else:
-                kullanicilar = kullanicilari_yukle()
-                if k_adi_input in kullanicilar and kullanicilar[k_adi_input]["sifre"] == sifre_input:
-                    st.session_state.giris_yapildi = True
-                    st.session_state.is_admin = False
-                    st.session_state.aktif_kullanici = kullanicilar[k_adi_input]["isim"]
-                    st.rerun()
-                else: 
-                    st.error("Hatalı kullanıcı adı veya şifre!")
-            
-    with sekme2:
-        yeni_isim = st.text_input("Adınız Soyadınız")
-        yeni_eposta = st.text_input("E-posta Adresiniz")
-        yeni_k_adi = st.text_input("Yeni Kullanıcı Adı")
-        yeni_sifre = st.text_input("Yeni Şifre", type="password")
-        
-        if st.button("Doğrulama Kodu Gönder ve Üye Ol", use_container_width=True):
-            if yeni_isim and yeni_eposta and yeni_k_adi and yeni_sifre:
-                kullanicilar = kullanicilari_yukle()
-                if yeni_k_adi in kullanicilar or yeni_k_adi == "admin":
-                    st.warning("Bu kullanıcı adı zaten alınmış şef!")
-                else:
-                    st.session_state.dogrulama_kodu = str(random.randint(100000, 999999))
-                    st.session_state.gecici_kayit = {
-                        "k_adi": yeni_k_adi, "sifre": yeni_sifre, "isim": yeni_isim, "eposta": yeni_eposta
-                    }
-                    with st.spinner("Doğrulama kodu e-postanıza fırlatılıyor..."):
-                        icerik = f"Merhaba {yeni_isim},\n\nNokta AI platformuna güvenli kayıt olmak için onay kodunuz: {st.session_state.dogrulama_kodu}\n\nKeyifli sohbetler dileriz!"
-                        if gercek_mail_gonder(yeni_eposta, "Nokta AI Kayıt Onayı 🎯", icerik):
-                            st.success("Kod başarıyla gönderildi! Sayfa yönlendiriliyor...")
-                            st.rerun()
-                        else:
-                            st.error("Kod gönderilirken e-posta motoru bir hata verdi. Bilgileri kontrol et şef.")
-            else: 
-                st.warning("Lütfen tüm alanları doldur şef!")
+                st.error("Kurucu şifresi hatalı şef!")
     st.stop()
 
-# --- 🛠️ PANEL BAŞLANGICI ---
+# --- 🛠️ PANEL İÇİ VE KONU SEÇİM ALANI ---
+if st.session_state.get("connected", False) and not st.session_state.aktif_kullanici:
+    st.session_state.aktif_kullanici = st.session_state.get("user_info", {}).get("name", "Google Üyesi")
+
 with st.sidebar:
-    st.title("🎯 Nokta AI")
-    st.write(f"👤 İsim: **{st.session_state.aktif_kullanici}**")
-    st.write(f"🛡️ Rol: **{'👑 KURUCU' if st.session_state.is_admin else '👤 ÜYE'}**")
+    st.title("🎯 Nokta AI Panel")
+    st.write(f"👤 Kullanıcı: **{st.session_state.aktif_kullanici}**")
+    st.write(f"🛡️ Rol: **{'👑 KURUCU' if st.session_state.is_admin else '👤 ZİYARETÇİ / ÜYE'}**")
     st.write("---")
     
-    yuklenen_resim = st.file_uploader("🖼️ Profil Resmi Yükle", type=["png", "jpg", "jpeg"])
-    if yuklenen_resim is not None:
-        st.image(yuklenen_resim, use_container_width=True)
+    # 🔥 İŞTE O İSTEDİĞİN ÖZEL KONULAR ALANI 🔥
+    st.markdown("### 📚 Bir Sohbet Konusu Seç")
+    konu_listesi = ["🤖 Genel Yapay Zeka", "🧱 Minecraft & Roblox Dünyası", "🔌 Arduino & Robotik Kodlama", "🦅 Beşiktaş Gündemi", "🛸 DJI Drone Teknolojileri"]
+    secilen_konu_kutusu = st.selectbox("Konuyu Değiştir:", konu_listesi)
+    
+    # Konu değiştiğinde hafızayı temizle ki yapay zeka yeni moda adapte olsun
+    if secilen_konu_kutusu != st.session_state.secilen_konu:
+        st.session_state.secilen_konu = secilen_konu_kutusu
+        st.session_state.mesajlar = []
+        st.toast(f"🔄 {secilen_konu_kutusu} moduna geçiş yapıldı şef!")
         
     st.write("---")
-    if st.button("🚪 Çıkış Yap", use_container_width=True):
+    st.markdown("### 📸 Resim Gönder")
+    sohbet_görüntüsü = st.file_uploader("Resim yükle:", type=["png", "jpg", "jpeg"])
+    if sohbet_görüntüsü is not None:
+        st.image(sohbet_görüntüsü, caption="İklenecek Görsel", use_container_width=True)
+        
+    st.write("---")
+    if st.button("🚪 Çıkış Yap / Ana Sayfa", use_container_width=True):
+        if st.session_state.get("connected", False):
+            authenticator.logout()
         st.session_state.mesajlar = []
         st.session_state.giris_yapildi = False
+        st.session_state.is_admin = False
         st.rerun()
 
-# --- 🔥 GÜVENLİ GÜNCEL GROQ SOHBET MOTORU ---
-def groq_ile_sohbet_et(kullanici_mesaji):
+# --- 🔥 DİNAMİK GROQ SOHBET MOTORU FONKSİYONU ---
+def groq_sohbet_motoru(kullanici_mesaji, base64_goruntu=None):
     if not GROQ_API_KEY:
-        return "Hata: GROQ_API_KEY Render panelinde bulunamadı şef!"
+        return "Hata: GROQ_API_KEY Render'da eksik şef!"
     try:
         client = Groq(api_key=GROQ_API_KEY)
+        
+        # Konuya göre yapay zekaya verilecek gizli emirler (System Prompt)
+        if "Minecraft" in st.session_state.secilen_konu:
+            konu_emri = "Sen tam bir Minecraft ve Roblox uzmanısın. Kullanıcıya modlar, aternos sunucuları, taktikler ve oyun stratejileri ver."
+        elif "Arduino" in st.session_state.secilen_konu:
+            konu_emri = "Sen uzman bir elektronik ve robotik mühendisisin. Arduino, sensor, röle, buzzer ve kodlama hatalarını tamir et."
+        elif "Beşiktaş" in st.session_state.secilen_konu:
+            konu_emri = "Sen koyu bir Beşiktaş taraftarısın! Beşiktaş kadrosu, marşları ve şampiyonlukları hakkında coşkulu cevaplar ver."
+        elif "Drone" in st.session_state.secilen_konu:
+            konu_emri = "Sen DJI drone uzmanısın. Neo, Mini 4 Pro, Air 3 modellerinin ağırlıkları, özellikleri ve uçuş kurallarını anlat."
+        else:
+            konu_emri = "Genel bir yapay zekasın. Her soruya zekice cevaplar üret."
+
         system_instruction = (
-            "Senin adın Nokta AI Ultimate. Sen Berat tarafından geliştirilmiş çok gelişmiş bir yapay zekasın. "
-            "Berat bir ilkokul öğrencisidir ve bu projenin dahi mucididir. Ona hep 'Şef', 'Kurucum' veya 'Berat' diye hitap et. "
-            "Diğer üyelere ise kibar bir asistan gibi davran. Berat; Arduino, robotik, DJI dronelar, Beşiktaş, Minecraft ve Roblox sevdalısıdır. "
-            "Kısa, enerjik ve zeki cevaplar ver."
+            f"Senin adın Nokta AI Ultimate. Sen Berat tarafından geliştirilmiş çok gelişmiş bir yapay zekasın. "
+            f"Berat bir ilkokul öğrencisidir ve bu projenin dahi kurucusudur. Ona hep 'Şef' veya 'Kurucum' de. "
+            f"Şu anki aktif sohbet modun: {st.session_state.secilen_konu}. {konu_emri} "
+            f"Kısa, enerjik ve net Türkçe cevaplar ver."
         )
-        groq_messages = [{"role": "system", "content": system_instruction}]
-        for m in st.session_state.mesajlar:
-            groq_messages.append({"role": m["role"], "content": m["content"]})
+        
+        icerik_listesi = [{"type": "text", "text": kullanici_mesaji}]
+        if base64_goruntu:
+            icerik_listesi.append({
+                "type": "image_url",
+                "image_url": {"url": f"data:image/jpeg;base64,{base64_goruntu}"}
+            })
+            
+        groq_messages = [
+            {"role": "system", "content": system_instruction},
+            {"role": "user", "content": icerik_listesi}
+        ]
             
         completion = client.chat.completions.create(
-            model="llama-3.1-8b-instant",
+            model="llama-3.2-11b-vision-preview",
             messages=groq_messages,
-            temperature=0.7,
+            temperature=0.6,
             max_tokens=1024,
         )
         return completion.choices[0].message.content
     except Exception as e:
-        return f"Groq Motoru Hatası: {e}"
+        return f"Bağlantı Hatası: {e}"
 
-# --- 👑 MOD 1: ADMIN PANELİ ---
-if st.session_state.is_admin:
-    st.title("👑 Nokta AI Yönetim Merkezi")
-    sekme_chat, sekme_kullanicilar = st.tabs(["💬 Nokta AI Motorunu Dene", "📊 Kayıtlı Kullanıcı Listesi"])
+# --- 💬 SOHBET ODASI EKRANI ---
+st.title(f"💬 Nokta AI Odası: {st.session_state.secilen_konu}")
+st.caption(f"🎯 Şu an '{st.session_state.secilen_konu}' modunda konuşuyorsun. Sol menüden konuyu değiştirebilirsin.")
+
+for m in st.session_state.mesajlar:
+    with st.chat_message(m["role"]): st.write(m["content"])
     
-    with sekme_kullanicilar:
-        st.subheader("👥 Platformdaki Kayıtlı Kişiler")
-        tum_uyeler = kullanicilari_yukle()
-        if tum_uyeler:
-            for k, v in tum_uyeler.items():
-                st.info(f"👤 **Kullanıcı:** {k} | **İsim:** {v['isim']} | **E-posta:** {v['eposta']}")
-        else: 
-            st.write("Sistemde henüz kayıtlı üye yok.")
-
-    with sekme_chat:
-        for m in st.session_state.mesajlar:
-            with st.chat_message(m["role"]): st.write(m["content"])
-        if ks := st.chat_input("NOKTA AI'a Sor... (Kurucu Denemesi)"):
-            with st.chat_message("user"): st.write(ks)
-            st.session_state.mesajlar.append({'role': 'user', 'content': ks})
-            with st.spinner("Groq Yanıtlıyor..."):
-                cevap = groq_ile_sohbet_et(ks)
-            with st.chat_message("assistant"): st.write(cevap)
-            st.session_state.mesajlar.append({'role': 'assistant', 'content': cevap})
-            st.rerun()
-
-# --- 👤 MOD 2: NORMAL KULLANICI PANELİ ---
-else:
-    st.title("💬 Nokta AI Sohbet Odası")
-    st.info("🚀 Sınırsız ve Ücretsiz Nokta AI Deneyimi Aktif!")
-
-    for m in st.session_state.mesajlar:
-        with st.chat_message(m["role"]): st.write(m["content"])
-        
-    if ks := st.chat_input("NOKTA AI'a Sor..."):
-        with st.chat_message("user"): st.write(ks)
-        st.session_state.mesajlar.append({'role': 'user', 'content': ks})
-        with st.chat_message("assistant"):
-            with st.spinner("Nokta AI Düşünüyor..."):
-                cevap = groq_ile_sohbet_et(ks)
-        st.session_state.mesajlar.append({'role': 'assistant', 'content': cevap})
-        st.rerun()
+if ks := st.chat_input("Nokta AI'a mesajını fırlat..."):
+    with st.chat_message("user"): st.write(ks)
+    st.session_state.mesajlar.append({'role': 'user', 'content': ks})
+    
+    b64_img = goruntuyu_base64_yap(sohbet_görüntüsü) if sohbet_görüntüsü else None
+    
+    with st.chat_message("assistant"):
+        with st.spinner("Nokta AI konuyu analiz ediyor..."):
+            cevap = groq_sohbet_motoru(ks, b64_img)
+            
+    st.write(cevap)
+    st.session_state.mesajlar.append({'role': 'assistant', 'content': cevap})
+    st.rerun()
