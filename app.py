@@ -6,7 +6,7 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import datetime
-from groq import Groq  # Yerel Ollama yerine dünya devi Groq'u getirdik!
+from groq import Groq  # Bulut yapay zeka motorumuz aktif!
 
 # Sayfa Ayarları
 st.set_page_config(page_title="Nokta AI Ultimate Edition", page_icon="🎯", layout="wide")
@@ -194,7 +194,7 @@ with st.sidebar:
         st.session_state.giris_yapildi = False
         st.rerun()
 
-# --- 🔥 GÜVENLİ GROQ SOHBET MOTORU FONKSİYONU ---
+# --- 🔥 GÜVENLİ GÜNCEL GROQ SOHBET MOTORU FONKSİYONU ---
 def groq_ile_sohbet_et(kullanici_mesaji):
     if not GROQ_API_KEY:
         return "Hata: Bulut motoru anahtarı (GROQ_API_KEY) Render panelinde bulunamadı şef!"
@@ -202,7 +202,6 @@ def groq_ile_sohbet_et(kullanici_mesaji):
     try:
         client = Groq(api_key=GROQ_API_KEY)
         
-        # Yapay zekaya muazzam kurucu kimliğini fısıldıyoruz
         system_instruction = (
             "Senin adın Nokta AI Ultimate. Sen Berat tarafından geliştirilmiş çok gelişmiş, hesap sistemli bir yapay zekasın. "
             "Berat bir ilkokul öğrencisidir ve bu projenin dahi mucididir. Ona hep 'Şef', 'Kurucum' veya 'Berat' diye hitap et. "
@@ -215,7 +214,7 @@ def groq_ile_sohbet_et(kullanici_mesaji):
             groq_messages.append({"role": m["role"], "content": m["content"]})
             
         completion = client.chat.completions.create(
-            model="llama3-8b-8192",
+            model="llama-3.1-8b-instant",  # Güncellenmiş aktif canavar model!
             messages=groq_messages,
             temperature=0.7,
             max_tokens=1024,
@@ -236,7 +235,7 @@ if st.session_state.is_admin:
         
         if st.button("🚀 TOPLU MAİLİ ŞİMDİ FIRLAT", use_container_width=True):
             if mail_konusu and mail_mesaji:
-                tum_uyeler = kullanicilari_yukle()
+                tum_uyeler = kullanicilari_yukne()
                 gonderilen_sayi = 0
                 with st.spinner("Tüm üyelere mailler tek tek fırlatılıyor..."):
                     for u_adi, u_bilgi in tum_uyeler.items():
@@ -261,7 +260,7 @@ if st.session_state.is_admin:
             with st.chat_message("user"): st.write(ks)
             st.session_state.mesajlar.append({'role': 'user', 'content': ks})
             
-            with st.spinner("Groq Bulut Motoru Yanıtlıyor..."):
+            with st.spinner("Nokta AI Düşünüyor..."):
                 cevap = groq_ile_sohbet_et(ks)
                 
             with st.chat_message("assistant"): st.write(cevap)
