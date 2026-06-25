@@ -28,12 +28,21 @@ authenticator = Authenticate(
 
 authenticator.check_authentification()
 
-# --- SESSION STATES ---
-if "mesajlar" not in st.session_state: st.session_state.mesajlar = []
+# --- 🧠 KONULAR İÇİN ÖZEL HAFIZA MATRİSİ ---
+# Her konunun sohbet geçmişini ayrı bir kutuda saklıyoruz şef!
+if "konu_hafizalari" not in st.session_state:
+    st.session_state.konu_hafizalari = {
+        "🤖 Genel Yapay Zeka": [],
+        "🧱 Minecraft & Roblox Dünyası": [],
+        "🔌 Arduino & Robotik Kodlama": [],
+        "🦅 Beşiktaş Gündemi": [],
+        "🛸 DJI Drone Teknolojileri": []
+    }
+
 if "giris_yapildi" not in st.session_state: st.session_state.giris_yapildi = False
 if "is_admin" not in st.session_state: st.session_state.is_admin = False
 if "aktif_kullanici" not in st.session_state: st.session_state.aktif_kullanici = ""
-if "secilen_konu" not in st.session_state: st.session_state.secilen_konu = "Genel Sohbet"
+if "secilen_konu" not in st.session_state: st.session_state.secilen_konu = "🤖 Genel Yapay Zeka"
 
 # --- 🖼️ GÖRÜNTÜ ÇEVİRİCİ SİHİRBAZ ---
 def goruntuyu_base64_yap(yuklenen_dosya):
@@ -93,28 +102,28 @@ with st.sidebar:
     st.write(f"🛡️ Rol: **{'👑 KURUCU' if st.session_state.is_admin else '👤 ZİYARETÇİ / ÜYE'}**")
     st.write("---")
     
-    # 🔥 İŞTE O İSTEDİĞİN ÖZEL KONULAR ALANI 🔥
+    # 🔥 AKILLI KONU SEÇİM ALANI 🔥
     st.markdown("### 📚 Bir Sohbet Konusu Seç")
-    konu_listesi = ["🤖 Genel Yapay Zeka", "🧱 Minecraft & Roblox Dünyası", "🔌 Arduino & Robotik Kodlama", "🦅 Beşiktaş Gündemi", "🛸 DJI Drone Teknolojileri"]
-    secilen_konu_kutusu = st.selectbox("Konuyu Değiştir:", konu_listesi)
+    konu_listesi = list(st.session_state.konu_hafizalari.keys())
+    secilen_konu_kutusu = st.selectbox("Konuyu Değiştir:", konu_listesi, index=konu_listesi.index(st.session_state.secilen_konu))
     
-    # Konu değiştiğinde hafızayı temizle ki yapay zeka yeni moda adapte olsun
+    # Konu değiştiğinde eski konunun mesajlarını kaydet, yenisini yükle!
     if secilen_konu_kutusu != st.session_state.secilen_konu:
         st.session_state.secilen_konu = secilen_konu_kutusu
-        st.session_state.mesajlar = []
-        st.toast(f"🔄 {secilen_konu_kutusu} moduna geçiş yapıldı şef!")
+        st.toast(f"🔄 {secilen_konu_kutusu} hafızası yüklendi şef!")
+        st.rerun()
         
     st.write("---")
     st.markdown("### 📸 Resim Gönder")
     sohbet_görüntüsü = st.file_uploader("Resim yükle:", type=["png", "jpg", "jpeg"])
     if sohbet_görüntüsü is not None:
-        st.image(sohbet_görüntüsü, caption="İklenecek Görsel", use_container_width=True)
+        st.image(sohbet_görüntüsü, caption="Eklenecek Görsel", use_container_width=True)
         
     st.write("---")
     if st.button("🚪 Çıkış Yap / Ana Sayfa", use_container_width=True):
         if st.session_state.get("connected", False):
             authenticator.logout()
-        st.session_state.mesajlar = []
+        st.session_state.konu_hafizalari = {k: [] for k in st.session_state.konu_hafizalari.keys()}
         st.session_state.giris_yapildi = False
         st.session_state.is_admin = False
         st.rerun()
@@ -126,25 +135,33 @@ def groq_sohbet_motoru(kullanici_mesaji, base64_goruntu=None):
     try:
         client = Groq(api_key=GROQ_API_KEY)
         
-        # Konuya göre yapay zekaya verilecek gizli emirler (System Prompt)
+        # Konuya göre gizli talimatlar
         if "Minecraft" in st.session_state.secilen_konu:
-            konu_emri = "Sen tam bir Minecraft ve Roblox uzmanısın. Kullanıcıya modlar, aternos sunucuları, taktikler ve oyun stratejileri ver."
+            konu_emri = "Sen tam bir Minecraft ve Roblox uzmanısın. Kullanıcıya modlar, aternos sunucuları ve oyun stratejileri ver."
         elif "Arduino" in st.session_state.secilen_konu:
-            konu_emri = "Sen uzman bir elektronik ve robotik mühendisisin. Arduino, sensor, röle, buzzer ve kodlama hatalarını tamir et."
+            konu_emri = "Sen uzman bir elektronik mühendisisin. Arduino, pin bağlantıları, sensör kodları ve devre hatalarını düzelt."
         elif "Beşiktaş" in st.session_state.secilen_konu:
-            konu_emri = "Sen koyu bir Beşiktaş taraftarısın! Beşiktaş kadrosu, marşları ve şampiyonlukları hakkında coşkulu cevaplar ver."
+            konu_emri = "Sen fanatik bir Beşiktaş taraftarısın! Beşiktaş kadrosu, oyuncuları (Rafa Silva vb.) ve marşları hakkında konuş."
         elif "Drone" in st.session_state.secilen_konu:
-            konu_emri = "Sen DJI drone uzmanısın. Neo, Mini 4 Pro, Air 3 modellerinin ağırlıkları, özellikleri ve uçuş kurallarını anlat."
+            konu_emri = "Sen DJI drone uzmanısın. DJI Neo, Mini 4 Pro, Air 3 modellerinin teknik detaylarını ve ağırlık sınırlarını anlat."
         else:
-            konu_emri = "Genel bir yapay zekasın. Her soruya zekice cevaplar üret."
+            konu_emri = "Genel bir yapay zekasın. Her soruya zekice ve net cevaplar üret."
 
         system_instruction = (
             f"Senin adın Nokta AI Ultimate. Sen Berat tarafından geliştirilmiş çok gelişmiş bir yapay zekasın. "
-            f"Berat bir ilkokul öğrencisidir ve bu projenin dahi kurucusudur. Ona hep 'Şef' veya 'Kurucum' de. "
-            f"Şu anki aktif sohbet modun: {st.session_state.secilen_konu}. {konu_emri} "
-            f"Kısa, enerjik ve net Türkçe cevaplar ver."
+            f"Berat bir ilkokul öğrencisidir ve bu projenin dahi mucididir. Ona hep 'Şef' veya 'Kurucum' de. "
+            f"Şu anki aktif sohbet konun: {st.session_state.secilen_konu}. {konu_emri} "
+            f"Kışla, enerjik ve net Türkçe cevaplar ver."
         )
         
+        # Groq mesaj listesini oluşturma
+        groq_messages = [{"role": "system", "content": system_instruction}]
+        
+        # Geçmiş mesajları kendi hafızasından çekip ekliyoruz (Böylece geçmişi unutmuyor!)
+        for m in st.session_state.konu_hafizalari[st.session_state.secilen_konu]:
+            groq_messages.append({"role": m["role"], "content": m["content"]})
+            
+        # Yeni mesajı ve varsa resmi ekliyoruz
         icerik_listesi = [{"type": "text", "text": kullanici_mesaji}]
         if base64_goruntu:
             icerik_listesi.append({
@@ -152,10 +169,7 @@ def groq_sohbet_motoru(kullanici_mesaji, base64_goruntu=None):
                 "image_url": {"url": f"data:image/jpeg;base64,{base64_goruntu}"}
             })
             
-        groq_messages = [
-            {"role": "system", "content": system_instruction},
-            {"role": "user", "content": icerik_listesi}
-        ]
+        groq_messages.append({"role": "user", "content": icerik_listesi})
             
         completion = client.chat.completions.create(
             model="llama-3.2-11b-vision-preview",
@@ -169,14 +183,17 @@ def groq_sohbet_motoru(kullanici_mesaji, base64_goruntu=None):
 
 # --- 💬 SOHBET ODASI EKRANI ---
 st.title(f"💬 Nokta AI Odası: {st.session_state.secilen_konu}")
-st.caption(f"🎯 Şu an '{st.session_state.secilen_konu}' modunda konuşuyorsun. Sol menüden konuyu değiştirebilirsin.")
+st.caption(f"🎯 Şu an bu konunun özel hafızası devrede. Başka konuya geçip geri gelsen bile buradaki konuşmaların saklanır şef!")
 
-for m in st.session_state.mesajlar:
+# Seçilen konunun kendi geçmişini ekrana basıyoruz
+for m in st.session_state.konu_hafizalari[st.session_state.secilen_konu]:
     with st.chat_message(m["role"]): st.write(m["content"])
     
 if ks := st.chat_input("Nokta AI'a mesajını fırlat..."):
     with st.chat_message("user"): st.write(ks)
-    st.session_state.mesajlar.append({'role': 'user', 'content': ks})
+    
+    # Yeni mesajı konunun kendi hafıza kutusuna kaydediyoruz
+    st.session_state.konu_hafizalari[st.session_state.secilen_konu].append({'role': 'user', 'content': ks})
     
     b64_img = goruntuyu_base64_yap(sohbet_görüntüsü) if sohbet_görüntüsü else None
     
@@ -185,5 +202,6 @@ if ks := st.chat_input("Nokta AI'a mesajını fırlat..."):
             cevap = groq_sohbet_motoru(ks, b64_img)
             
     st.write(cevap)
-    st.session_state.mesajlar.append({'role': 'assistant', 'content': cevap})
+    # Yapay zekanın cevabını da yine o konunun kutusuna atıyoruz
+    st.session_state.konu_hafizalari[st.session_state.secilen_konu].append({'role': 'assistant', 'content': cevap})
     st.rerun()
