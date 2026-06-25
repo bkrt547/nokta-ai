@@ -9,7 +9,7 @@ app = Flask(__name__)
 try:
     # Eğer önceden kalma bir süreç varsa çakışmasın diye portu ve ayarları netleştiriyoruz
     os.environ["STREAMLIT_SERVER_PORT"] = "8501"
-    os.environ["STREAMLIT_SERVER_ADDRESS"] = "0.0.0.0"]
+    os.environ["STREAMLIT_SERVER_ADDRESS"] = "0.0.0.0"
     
     cmd = ["streamlit", "run", "app.py", "--server.headless", "true"]
     # Süreci arka planda tamamen bağımsız başlatıyoruz
