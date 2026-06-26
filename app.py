@@ -19,19 +19,21 @@ def kullanicilari_yukle():
     if os.path.exists(VERITABANI_DOSYASI):
         with open(VERITABANI_DOSYASI, "r", encoding="utf-8") as f:
             try:
-                return json.load(f)
+                data = json.load(f)
+                if isinstance(data, dict):
+                    return data
+                return {}
             except:
                 return {}
     return {}
 
 def kullanici_kaydet(k_adi, sifre, gercek_isim, e_posta):
     veriler = kullanicilari_yukle()
-    temiz_eposta = e_posta.lower().strip()
-    if k_adi in veriler: return "kullanici_var"
-    veriler[k_adi] = {
-        "sifre": sifre, 
-        "isim": gercek_isim, 
-        "eposta": temiz_eposta
+    temiz_kadi = k_adi.strip()
+    veriler[temiz_kadi] = {
+        "sifre": sifre.strip(), 
+        "isim": gercek_isim.strip(), 
+        "eposta": e_posta.lower().strip()
     }
     with open(VERITABANI_DOSYASI, "w", encoding="utf-8") as f:
         json.dump(veriler, f, ensure_ascii=False, indent=4)
@@ -99,8 +101,9 @@ if not st.session_state.giris_yapildi:
         sekme1, sekme2 = st.tabs(["🚪 Klasik Oturum Aç", "📝 Ücretsiz Kayıt Ol"])
         
         with sekme1:
-            k_adi_input = st.text_input("Kullanıcı Adı / Kurucu Kodu")
-            sifre_input = st.text_input("Şifre", type="password")
+            k_adi_input = st.text_input("Kullanıcı Adı / Kurucu Kodu").strip()
+            sifre_input = st.text_input("Şifre", type="password").strip()
+            
             if st.button("Oturum Aç", use_container_width=True):
                 if k_adi_input == "admin" and sifre_input == "berat123":
                     st.session_state.giris_yapildi = True
@@ -115,7 +118,7 @@ if not st.session_state.giris_yapildi:
                         st.session_state.aktif_kullanici = kullanicilar[k_adi_input]["isim"]
                         st.rerun()
                     else: 
-                        st.error("Kullanıcı adı veya şifre hatalı!")
+                        st.error("Kullanıcı adı veya şifre hatalı şef! Lütfen kontrol et.")
                         
         with sekme2:
             yeni_isim = st.text_input("Ad Soyad")
@@ -123,15 +126,15 @@ if not st.session_state.giris_yapildi:
             yeni_k_adi = st.text_input("Kullanıcı Adı Seçin")
             yeni_sifre = st.text_input("Şifre Seçin", type="password")
             
-            # 🔴 MAİL ENGELLERİNİ YIKAN DİREKT KAYIT BUTONU 🔴
             if st.button("Anında Kayıt Ol ve Profil Aç 🚀", use_container_width=True):
                 if yeni_isim and yeni_eposta and yeni_k_adi and yeni_sifre:
                     kullanicilar = kullanicilari_yukle()
-                    if yeni_k_adi in kullanicilar or yeni_k_adi == "admin":
+                    temiz_yeni_kadi = yeni_k_adi.strip()
+                    if temiz_yeni_kadi in kullanicilar or temiz_yeni_kadi == "admin":
                         st.warning("Bu kullanıcı adı zaten alınmış şef!")
                     else:
-                        kullanici_kaydet(yeni_k_adi, yeni_sifre, yeni_isim, yeni_eposta)
-                        st.success("🔥 Muazzam! Kayıt başarılı kurucum. 'Klasik Oturum Aç' sekmesinden giriş yapabilirsiniz!")
+                        kullanici_kaydet(temiz_yeni_kadi, yeni_sifre, yeni_isim, yeni_eposta)
+                        st.success("🔥 Muazzam! Kayıt başarılı kurucum. Şimdi yan sekmeye geçip giriş yapabilirsiniz!")
                 else: 
                     st.warning("Lütfen tüm alanları eksiksiz doldur kurucum!")
     st.stop()
