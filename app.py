@@ -4,20 +4,15 @@ import os
 import random
 import base64
 import smtplib
+import urllib.parse  # Resim komutlarını internet diline çevirmek için
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from io import BytesIO
 from groq import Groq
-import torch
-from diffusers import FluxPipeline # 🎨 İşte o dahi resim motoru!
 
 # Sayfa Ayarları
 st.set_page_config(page_title="Nokta AI Ultimate Art", page_icon="🎨", layout="wide")
 
-# --- 📂 DOSYA VE HAFIZA AYARLARI ---
 VERITABANI_DOSYASI = "kullanicilar.json"
-RESIM_KLASORU = "olusturulan_resimler"
-os.makedirs(RESIM_KLASORU, exist_ok=True) # Resimler buraya kaydolacak şef!
 
 # --- 📧 GERÇEK E-POSTA BİLGİLERİ ---
 GÖNDERİCİ_MAİL = "noktaaioffical@gmail.com"  
@@ -164,7 +159,7 @@ if not st.session_state.giris_yapildi:
                             icerik = f"Merhaba {yeni_isim},\n\nNokta AI onay kodunuz: {st.session_state.dogrulama_kodu}"
                             if gercek_mail_gonder(yeni_eposta, "Nokta AI Onay Kodu 🎯", icerik):
                                 st.success("Kod gönderildi!")
-                                "st.rerun()"
+                                st.rerun()
                             else:
                                 st.error("E-posta hatası oluştu.")
                 else: 
@@ -189,7 +184,8 @@ with st.sidebar:
 
         st.write("---")
         
-        st.markdown("<p style='font-weight: bold; color: #888;'>Sohbet Odaların</p>", unsafe_allow_html=True)
+        # 🔴 FOTOĞRAFTAKİ GİBİ ALT ALTA LİSTELEME ALANI
+        st.markdown("<p style='font-weight: bold; color: #888;'>Son Kullanılanlar</p>", unsafe_allow_html=True)
         konu_listesi = list(st.session_state.konu_hafizalari.keys())
         for oda in konu_listesi:
             if oda == st.session_state.secilen_konu:
@@ -233,7 +229,8 @@ def groq_sohbet_motoru(kullanici_mesaji, base64_goruntu=None):
         
         groq_messages = [{"role": "system", "content": system_instruction}]
         for m in st.session_state.konu_hafizalari[st.session_state.secilen_konu]:
-            groq_messages.append({"role": m["role"], "content": m["content"]})
+            if m.get("type") != "image":  # Resim yollarını metin geçmişine karıştırma şef
+                groq_messages.append({"role": m["role"], "content": m["content"]})
             
         icerik_listesi = [{"type": "text", "text": kullanici_mesaji}]
         if base64_goruntu:
@@ -253,36 +250,17 @@ def groq_sohbet_motoru(kullanici_mesaji, base64_goruntu=None):
     except Exception as e:
         return f"Bağlantı Hatası: {e}"
 
-# --- 🎨 MUDAZZAM FLUX.1 RESİM OLUŞTURMA MOTORU FONKSİYONU 🎨 ---
-@st.cache_resource # Motoru sadece bir kez yükle, Render'ı yorma şef!
-def resim_motorunu_yukle():
-    if not torch.cuda.is_available(): # Eğer güçlü GPU yoksa işlemciyi kullan (Render'da yavaş olabilir)
-        return "GPU_YOK", None
-    
-    with st.spinner("🚀 Nokta AI Resim Motoru (Flux.1) yükleniyor, bu biraz sürebilir şef..."):
-        pipe = FluxPipeline.from_pretrained("black-forest-labs/flux-1-dev", torch_dtype=torch.float16)
-        pipe.enable_model_cpu_offload() # RAM'i koruma modu!
-        return "BASARILI", pipe
-
-status, resim_pipe = resim_motorunu_yukle()
-
-def resim_ciz_motoru(prompt):
-    if status != "BASARILI":
-        return None, "Gözlü Motor Hatası: Render ücretsiz GPU'su şu an yoğun veya motor yüklenemedi. Sonra tekrar deneyelim şef!"
-    
+# --- 🎨 LIGHTWEIGHT JET RESİM ÜRETME MOTORU (RENDER DOSTU) 🎨 ---
+def bulut_resim_ciz_motoru(prompt):
     try:
-        with st.spinner(f"🎨 Nokta AI Ultimate hayalindeki '{prompt}' resmini çiziyor, pırıl pırıl bir drone tasarımı geliyor..."):
-            resim = resim_pipe(
-                prompt,
-                guidance_scale=3.5,
-                num_inference_steps=20, # Adım sayısı, hızı belirler.
-                generator=torch.Generator("cpu").manual_seed(random.randint(0, 999999)) # Her seferinde farklı çizim.
-            ).images[0]
-            
-            resim_id = f"resim_{random.randint(1000, 9999)}.png"
-            resim_yolu = os.path.join(RESIM_KLASORU, resim_id)
-            resim.save(resim_yolu)
-            return resim_yolu, None
+        with st.spinner(f"🎨 Nokta AI Bulut Motoru '{prompt}' resmini çiziyor..."):
+            # Prompt içindeki Türkçe karakterleri ve boşlukları internet diline güvenli bir şekilde kodluyoruz şef
+            temiz_prompt = urllib.parse.quote(prompt)
+            # Rastgele bir seed ekliyoruz ki her çizim benzersiz ve harika olsun
+            rastgele_seed = random.randint(1, 999999)
+            # Saniyeler içinde yüksek kaliteli resim üreten Flux sunucu bağlantısı!
+            resim_url = f"https://image.pollinations.ai/prompt/{temiz_prompt}?width=1024&height=1024&seed={rastgele_seed}&model=flux"
+            return resim_url, None
     except Exception as e:
         return None, f"Resim Çizme Hatası: {e}"
 
@@ -297,7 +275,7 @@ if st.session_state.is_admin:
         tum_uyeler = kullanicilari_yukle()
         c1, c2 = st.columns(2)
         c1.metric(label="👥 Toplam Üye Sayısı", value=f"{len(tum_uyeler)} Kişi")
-        c2.metric(label="🔵 Resim Motoru Durumu", value="🧠 Flux.1 Aktif" if status == "BASARILI" else "🔴 Çevrimdışı")
+        c2.metric(label="🔵 Resim Motoru Durumu", value="🟢 Sınırsız Bulut Flux Aktif")
         st.write("---")
         st.markdown("#### 👥 Üye Listesi")
         if tum_uyeler:
@@ -318,8 +296,7 @@ if st.session_state.is_admin:
         
         for m in st.session_state.konu_hafizalari[st.session_state.secilen_konu]:
             with st.chat_message(m["role"]):
-                if m["role"] == "assistant" and m.get("type") == "image":
-                    # Eğer assistanın cevabı bir resimse, resmi gösteriyoruz şef!
+                if m.get("type") == "image":
                     st.image(m["content"], caption="Nokta AI Tarafından Çizilen Sanat!", use_container_width=True)
                 else:
                     st.write(m["content"])
@@ -330,21 +307,20 @@ if st.session_state.is_admin:
             
             b64_img = goruntuyu_base64_yap(sohbet_görüntüsü) if sohbet_görüntüsü else None
             
-            # 🎨 RESİM ÇİZME MANTIĞI: Eğer mesajda 'çiz' veya 'oluştur' geçiyorsa:
-            if any(kelime in ks.lower() for kelime in ["çiz", "oluştur", "create image"]):
-                resim_yolu, hata = resim_ciz_motoru(ks.replace("çiz", "").replace("oluştur", "").strip())
+            # 🎨 RESİM ÇİZME MANTIĞI ACTIVATED!
+            if any(kelime in ks.lower() for kelime in ["çiz", "oluştur", "resmini yap"]):
+                aranan_cizim = ks.lower().replace("çiz", "").replace("oluştur", "").replace("resmini yap", "").strip()
+                resim_linki, hata = bulut_resim_ciz_motoru(aranan_cizim)
                 
                 with st.chat_message("assistant"):
                     if hata:
                         st.error(hata)
-                        st.session_state.konu_hafizalari[st.session_state.secilen_konu].append({'role': 'assistant', 'content': hata, 'type': 'text'})
                     else:
-                        # Çizilen resmi asistandan göster ve hafızaya 'resim' tipinde kaydet!
-                        st.image(resim_yolu, caption="Hayalindeki Çizim Hazır Kurucum!", use_container_width=True)
-                        st.session_state.konu_hafizalari[st.session_state.secilen_konu].append({'role': 'assistant', 'content': resim_yolu, 'type': 'image'})
+                        st.image(resim_linki, caption="Hayalindeki Çizim Saniyeler İçinde Hazır Kurucum!", use_container_width=True)
+                        st.session_state.konu_hafizalari[st.session_state.secilen_konu].append({'role': 'assistant', 'content': resim_linki, 'type': 'image'})
                 st.rerun()
                 
-            else: # Eğer sadece sohbet ediyorsa:
+            else: # Sadece normal mesajlaşma
                 with st.spinner("Groq Motoru Düşünüyor..."):
                     cevap = groq_sohbet_motoru(ks, b64_img)
                     
