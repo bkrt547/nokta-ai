@@ -17,9 +17,9 @@ VERITABANI_DOSYASI = "kullanicilar.json"
 # --- 🔑 API BAĞLANTILARI ---
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 
-# --- 📧 GERÇEK E-POSTA BİLGİLERİ (KURUCU MAİL AYARLARI) ---
+# --- 📧 GERÇEK E-POSTA BİLGİLERİ (YENİ UYGULAMA ŞİFREN AKTİF!) ---
 GÖNDERİCİ_MAİL = "noktaaioffical@gmail.com"  
-GÖNDERİCİ_ŞİFRE = "gpbfxxerhtwakuwd"  
+GÖNDERİCİ_ŞİFRE = "opyxodrddlruelrk"  # Resimdeki 16 haneli canavar şifren buraya cuk oturdu şef!
 
 # --- 📩 GERÇEK E-POSTA GÖNDERME MOTORU ---
 def gercek_mail_gonder(alici_mail, konu, mesaj_icerigi):
@@ -92,7 +92,7 @@ def otomatik_baslik_uret(kullanici_ilk_mesaji):
         client = Groq(api_key=GROQ_API_KEY)
         prompt = (
             f"Sana bir kullanıcının yapay zekaya yazdığı ilk mesajı vereceğim. Bu mesaja bakarak sol menüde listelenmek üzere "
-            f"en fazla 3-5 kelimelik, çok şık ve Türkçe bir sohbet başlığı üret. Sadece başlığı yaz, başka hiçbir açıklama ekleme.\n"
+            f"en fazla 3-5 kelimelik, çok şık bir sohbet başlığı üret. Sadece başlığı yaz, başka hiçbir açıklama ekleme.\n"
             f"Kullanıcı Mesajı: {kullanici_ilk_mesaji}"
         )
         completion = client.chat.completions.create(
@@ -111,16 +111,16 @@ if not st.session_state.giris_yapildi:
     st.markdown("<p style='text-align: center; color: #aaa;'>Kurucu: Berat</p>", unsafe_allow_html=True)
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # 📩 E-POSTA ONAYLAMA EKRANI (KOD GÖNDERİLİNCE DEVREYE GİRER)
+    # 📩 E-POSTA ONAYLAMA EKRANI
     if st.session_state.dogrulama_kodu:
         st.subheader("📩 Üye Onay Paneli")
-        st.info("Lütfen e-posta adresinize gönderilen 6 haneli onay kodunu giriniz şef.")
+        st.info("Lütfen e-posta adresinize fırlatılan 6 haneli onay kodunu giriniz şef.")
         kg = st.text_input("Onay Kodunu Yazın:")
         if st.button("Onayla ve Üye Yap 🚀", use_container_width=True):
             if kg == st.session_state.dogrulama_kodu:
                 g = st.session_state.gecici_kayit
                 kullanici_kaydet(g["k_adi"], g["sifre"], g["isim"], g["eposta"])
-                st.success("Mükemmel! Hesap başarıyla açıldı kurucum. Şimdi Klasik Oturum Aç sekmesinden giriş yapabilirsiniz.")
+                st.success("Mükemmel! Hesap başarıyla açıldı kurucum. Klasik Giriş sekmesinden oturum açabilirsiniz.")
                 st.session_state.dogrulama_kodu = None
                 st.rerun()
             else: 
@@ -168,14 +168,12 @@ if not st.session_state.giris_yapildi:
             yeni_k_adi = st.text_input("Kullanıcı Adı Seçin")
             yeni_sifre = st.text_input("Şifre Seçin", type="password")
             
-            # 🔴 İŞTE GÜNCELLENEN DOĞRULAMA KODLU KAYIT SİHİRBAZI 🔴
             if st.button("Doğrulama Kodu Gönder ve Kaydet", use_container_width=True):
                 if yeni_isim and yeni_eposta and yeni_k_adi and yeni_sifre:
                     kullanicilar = kullanicilari_yukle()
                     if yeni_k_adi in kullanicilar or yeni_k_adi == "admin":
                         st.warning("Bu kullanıcı adı zaten alınmış şef!")
                     else:
-                        # 6 haneli rastgele kod üretiliyor
                         st.session_state.dogrulama_kodu = str(random.randint(100000, 999999))
                         st.session_state.gecici_kayit = {
                             "k_adi": yeni_k_adi, "sifre": yeni_sifre, "isim": yeni_isim, "eposta": yeni_eposta
@@ -183,10 +181,10 @@ if not st.session_state.giris_yapildi:
                         with st.spinner("Şifreli onay kodu e-postana fırlatılıyor kurucum..."):
                             icerik = f"Merhaba {yeni_isim},\n\nNokta AI platformuna kayıt olmak için onay kodunuz: {st.session_state.dogrulama_kodu}\n\nİyi çalışmalar şef!"
                             if gercek_mail_gonder(yeni_eposta, "Nokta AI Kayıt Onay Kodu 🎯", icerik):
-                                st.success("Onay kodu e-postana başarıyla gönderildi! Sayfa yönlendiriliyor...")
+                                st.success("Onay kodu gönderildi! Sayfa yönlendiriliyor...")
                                 st.rerun()
                             else:
-                                st.error("E-posta gönderilirken bir hata oluştu. Lütfen e-postanı kontrol et şef.")
+                                st.error("E-posta gönderilemedi. Lütfen adresi kontrol et şef.")
                 else: 
                     st.warning("Lütfen tüm alanları eksiksiz doldur kurucum!")
     st.stop()
@@ -232,7 +230,7 @@ with st.sidebar:
         st.session_state.is_admin = False
         st.rerun()
 
-# --- 🔥 GÜÇLÜ VE HATASIZ GROQ SOHBET MOTORU (KURUCUYA ÖZEL) ---
+# --- 🔥 GÜÇLÜ GROQ SOHBET MOTORU (KURUCUYA ÖZEL) ---
 def groq_sohbet_motoru(kullanici_mesaji, base64_goruntu=None):
     if not GROQ_API_KEY: return "Hata: GROQ_API_KEY Render panellerinde eksik şef!"
     try:
@@ -257,7 +255,7 @@ def groq_sohbet_motoru(kullanici_mesaji, base64_goruntu=None):
         return completion.choices[0].message.content
     except Exception as e: return f"Bağlantı Hatası: {e}"
 
-# --- 📉 VERİMSİZ VEYA KISITLI MİSAFİR MOTORU (ZİYARETÇİYE ÖZEL) ---
+# --- 📉 VERİMSİZ VE KISITLI MİSAFİR MOTORU (ZİYARETÇİYE ÖZEL) ---
 def misafir_sohbet_motoru(kullanici_mesaji):
     if not GROQ_API_KEY: return "Sistem yoğun."
     try:
