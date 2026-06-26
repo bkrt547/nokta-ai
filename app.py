@@ -17,6 +17,27 @@ VERITABANI_DOSYASI = "kullanicilar.json"
 # --- 🔑 API BAĞLANTILARI ---
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 
+# --- 📧 GERÇEK E-POSTA BİLGİLERİ (KURUCU MAİL AYARLARI) ---
+GÖNDERİCİ_MAİL = "noktaaioffical@gmail.com"  
+GÖNDERİCİ_ŞİFRE = "gpbfxxerhtwakuwd"  
+
+# --- 📩 GERÇEK E-POSTA GÖNDERME MOTORU ---
+def gercek_mail_gonder(alici_mail, konu, mesaj_icerigi):
+    try:
+        server = smtplib.SMTP("smtp.gmail.com", 587)
+        server.starttls()
+        server.login(GÖNDERİCİ_MAİL, GÖNDERİCİ_ŞİFRE)
+        msg = MIMEMultipart()
+        msg['From'] = GÖNDERİCİ_MAİL
+        msg['To'] = alici_mail
+        msg['Subject'] = konu
+        msg.attach(MIMEText(mesaj_icerigi, 'plain', 'utf-8'))
+        server.sendmail(GÖNDERİCİ_MAİL, alici_mail, msg.as_string())
+        server.quit()
+        return True
+    except:
+        return False
+
 # --- KULLANICI VERİTABANI FONKSİYONLARI ---
 def kullanicilari_yukle():
     if os.path.exists(VERITABANI_DOSYASI):
@@ -90,6 +111,25 @@ if not st.session_state.giris_yapildi:
     st.markdown("<p style='text-align: center; color: #aaa;'>Kurucu: Berat</p>", unsafe_allow_html=True)
     st.markdown("<br>", unsafe_allow_html=True)
 
+    # 📩 E-POSTA ONAYLAMA EKRANI (KOD GÖNDERİLİNCE DEVREYE GİRER)
+    if st.session_state.dogrulama_kodu:
+        st.subheader("📩 Üye Onay Paneli")
+        st.info("Lütfen e-posta adresinize gönderilen 6 haneli onay kodunu giriniz şef.")
+        kg = st.text_input("Onay Kodunu Yazın:")
+        if st.button("Onayla ve Üye Yap 🚀", use_container_width=True):
+            if kg == st.session_state.dogrulama_kodu:
+                g = st.session_state.gecici_kayit
+                kullanici_kaydet(g["k_adi"], g["sifre"], g["isim"], g["eposta"])
+                st.success("Mükemmel! Hesap başarıyla açıldı kurucum. Şimdi Klasik Oturum Aç sekmesinden giriş yapabilirsiniz.")
+                st.session_state.dogrulama_kodu = None
+                st.rerun()
+            else: 
+                st.error("Girdiğin kod hatalı şef, e-postanı kontrol et!")
+        if st.button("⬅️ İptal Et ve Geri Dön"):
+            st.session_state.dogrulama_kodu = None
+            st.rerun()
+        st.stop()
+
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         hizli_gecis = st.button("🚀 Oturum Açmadan Devam Et", use_container_width=True)
@@ -124,21 +164,31 @@ if not st.session_state.giris_yapildi:
                         
         with sekme2:
             yeni_isim = st.text_input("Ad Soyad")
-            yeni_eposta = st.text_input("E-posta")
+            yeni_eposta = st.text_input("E-posta Adresi")
             yeni_k_adi = st.text_input("Kullanıcı Adı Seçin")
             yeni_sifre = st.text_input("Şifre Seçin", type="password")
             
-            if st.button("Kaydet ve Üye Yap", use_container_width=True):
+            # 🔴 İŞTE GÜNCELLENEN DOĞRULAMA KODLU KAYIT SİHİRBAZI 🔴
+            if st.button("Doğrulama Kodu Gönder ve Kaydet", use_container_width=True):
                 if yeni_isim and yeni_eposta and yeni_k_adi and yeni_sifre:
                     kullanicilar = kullanicilari_yukle()
                     if yeni_k_adi in kullanicilar or yeni_k_adi == "admin":
-                        st.warning("Bu kullanıcı adı kapılmış şef!")
+                        st.warning("Bu kullanıcı adı zaten alınmış şef!")
                     else:
-                        kullanici_kaydet(yeni_k_adi, yeni_sifre, yeni_isim, yeni_eposta)
-                        st.success("Hesap başarıyla açıldı! Giriş yapabilirsiniz.")
-                        st.rerun()
+                        # 6 haneli rastgele kod üretiliyor
+                        st.session_state.dogrulama_kodu = str(random.randint(100000, 999999))
+                        st.session_state.gecici_kayit = {
+                            "k_adi": yeni_k_adi, "sifre": yeni_sifre, "isim": yeni_isim, "eposta": yeni_eposta
+                        }
+                        with st.spinner("Şifreli onay kodu e-postana fırlatılıyor kurucum..."):
+                            icerik = f"Merhaba {yeni_isim},\n\nNokta AI platformuna kayıt olmak için onay kodunuz: {st.session_state.dogrulama_kodu}\n\nİyi çalışmalar şef!"
+                            if gercek_mail_gonder(yeni_eposta, "Nokta AI Kayıt Onay Kodu 🎯", icerik):
+                                st.success("Onay kodu e-postana başarıyla gönderildi! Sayfa yönlendiriliyor...")
+                                st.rerun()
+                            else:
+                                st.error("E-posta gönderilirken bir hata oluştu. Lütfen e-postanı kontrol et şef.")
                 else: 
-                    st.warning("Tüm alanları doldur kurucum!")
+                    st.warning("Lütfen tüm alanları eksiksiz doldur kurucum!")
     st.stop()
 
 # --- 🛠️ PANEL İÇİ YAN MENÜ MANTIĞI ---
@@ -207,15 +257,14 @@ def groq_sohbet_motoru(kullanici_mesaji, base64_goruntu=None):
         return completion.choices[0].message.content
     except Exception as e: return f"Bağlantı Hatası: {e}"
 
-# --- 📉 VERİMSİZ VE KISITLI MİSAFİR MOTORU (ZİYARETÇİYE ÖZEL) 📉 ---
+# --- 📉 VERİMSİZ VEYA KISITLI MİSAFİR MOTORU (ZİYARETÇİYE ÖZEL) ---
 def misafir_sohbet_motoru(kullanici_mesaji):
     if not GROQ_API_KEY: return "Sistem yoğun."
     try:
         client = Groq(api_key=GROQ_API_KEY)
-        # Bilerek hafızasız, kısıtlı ve basit talimat veriyoruz şef
         system_instruction = "Sen kısıtlı bir misafir yapay zekasısın. Sorulara çok kısa, basit, derin analize girmeden ve kısıtlı modda olduğunu belirterek cevap ver."
         completion = client.chat.completions.create(
-            model="llama-3.1-8b-instant",  # Daha küçük, daha verimsiz ve basit model!
+            model="llama-3.1-8b-instant",  
             messages=[
                 {"role": "system", "content": system_instruction},
                 {"role": "user", "content": kullanici_mesaji}
@@ -291,7 +340,7 @@ if st.session_state.is_admin:
                 st.session_state.konu_hafizalari[st.session_state.secilen_konu].append({'role': 'assistant', 'content': cevap, 'type': 'text'})
                 st.rerun()
 
-# --- 👤 NORMAL MİSAFİR EKRANI (ŞİMDİ GERÇEK AMA VERİMSİZ SOHBET MOTORU AKTİF) ---
+# --- 👤 NORMAL MİSAFİR EKRANI ---
 else:
     st.title("🎯 Nokta AI Ziyaretçi Kanalı")
     st.info("👋 Hoş geldin! Şu an Oturum Açmadan bağlandın. Özel odalar kapalıdır ama temel yapay zekayı test edebilirsin:")
